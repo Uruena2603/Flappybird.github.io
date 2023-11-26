@@ -22,3 +22,7 @@ Durante el desarrollo de este programa aprendí a desarrollar lo siguiente:
 - Generar aleatoriamente tuberías y moverlas a lo largo de la pantalla.
 - Detectar colisiones entre el pájaro y cada tubería.
 - Incorporar un marcador en tiempo real.
+
+## Juega Ahora
+
+Puedes disfrutar del juego en vivo [aquí](https://uruena2603.github.io/Flappybird.github.io/).
