@@ -464,11 +464,6 @@ function renderUI() {
   context.strokeText(levelText, 5, 60);
   context.fillText(levelText, 5, 60);
 
-  // Mostrar debug info
-  const debugText = `VelY: ${velocityY.toFixed(1)} Y: ${bird.y.toFixed(1)}`;
-  context.strokeText(debugText, 5, 90);
-  context.fillText(debugText, 5, 90);
-
   if (gameOver) {
     context.font = "32px sans-serif";
     context.strokeText("GAME OVER", 50, boardHeight / 2);
