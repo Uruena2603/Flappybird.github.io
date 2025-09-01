@@ -177,8 +177,8 @@ function handleJump() {
     console.warn("Error reproduciendo sonido de salto:", error);
   }
 
-  // Aplicar velocidad de salto
-  velocityY = -GAME_CONFIG.BIRD.JUMP_VELOCITY;
+  // Aplicar velocidad de salto (JUMP_VELOCITY ya es negativo)
+  velocityY = GAME_CONFIG.BIRD.JUMP_VELOCITY;
 }
 
 function update() {
