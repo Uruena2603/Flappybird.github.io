@@ -1,13 +1,56 @@
 <!DOCTYPE html>
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flappy Bird</title>
-    <link rel="stylesheet" href="flappyBird.css">
-    <script src="flappyBird.js"></script>
-</head>
-<body>
-    <canvas id="board" class="level-1"></canvas>
-</body>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Flappy Bird Enhanced Edition - Un juego clásico mejorado con múltiples niveles y características avanzadas"
+    />
+    <meta
+      name="keywords"
+      content="flappy bird, juego, javascript, html5, canvas"
+    />
+    <meta name="author" content="Uruena2603" />
+
+    <title>Flappy Bird - Enhanced Edition</title>
+
+    <!-- Preconnect para optimización -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+    <!-- Estilos -->
+    <link rel="stylesheet" href="./src/css/main.css" />
+
+    <!-- Preload de assets críticos -->
+    <link rel="preload" href="./assets/images/flappybird.png" as="image" />
+    <link rel="preload" href="./assets/images/flappybirdbg.png" as="image" />
+
+    <!-- PWA Manifest (para futuras mejoras) -->
+    <!-- <link rel="manifest" href="./manifest.json"> -->
+
+    <!-- Favicons -->
+    <!-- <link rel="icon" type="image/png" sizes="32x32" href="./assets/images/favicon-32x32.png"> -->
+  </head>
+  <body>
+    <!-- Contenedor principal del juego -->
+    <div class="game-container">
+      <canvas id="board" class="level-1" width="360" height="640"></canvas>
+    </div>
+
+    <!-- Loading screen (se ocultará cuando el juego esté listo) -->
+    <div id="loading" class="loading" style="display: none">
+      Cargando juego...
+    </div>
+
+    <!-- Scripts del juego (tipo module para ES6) -->
+    <script type="module" src="./src/js/main.js"></script>
+
+    <!-- Service Worker para PWA (futuro) -->
+    <!-- <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js');
+        }
+    </script> -->
+  </body>
 </html>

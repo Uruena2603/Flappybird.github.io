@@ -1,0 +1,150 @@
+/**
+ * main.css - Estilos principales del juego
+ * Flappy Bird Enhanced Edition
+ */
+
+/* Variables CSS para temas */
+:root {
+  --primary-color: #4a90e2;
+  --secondary-color: #f5f5f5;
+  --accent-color: #ff6b6b;
+  --text-color: #333;
+  --background-color: #87ceeb;
+  --font-family: "Courier New", Courier, monospace;
+  --border-radius: 8px;
+  --shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Reset y configuración base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  text-align: center;
+  background: linear-gradient(135deg, #87ceeb 0%, #98d4ea 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Contenedor principal del juego */
+.game-container {
+  position: relative;
+  display: inline-block;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* Canvas del juego */
+#board {
+  display: block;
+  border: 3px solid #333;
+  border-radius: var(--border-radius);
+  background-color: var(--background-color);
+  image-rendering: pixelated; /* Para mantener la estética pixel art */
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* Niveles - Fondos dinámicos */
+.level-1 {
+  background-image: url("../../assets/images/flappybirdbg.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.level-2 {
+  background-image: url("../../assets/images/Hell.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Estilos responsivos */
+@media (max-width: 480px) {
+  #board {
+    max-width: 90vw;
+    height: auto;
+  }
+
+  body {
+    padding: 10px;
+  }
+}
+
+@media (max-height: 700px) {
+  #board {
+    max-height: 85vh;
+    width: auto;
+  }
+}
+
+/* Animaciones y transiciones */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+.fade-out {
+  animation: fadeOut 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Indicadores de carga */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 24px;
+  color: var(--text-color);
+}
+
+.loading::after {
+  content: "";
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 20px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,185 @@
+{
+  "levels": {
+    "1": {
+      "id": 1,
+      "name": "Sky World",
+      "description": "Un hermoso mundo celestial donde comenzar tu aventura",
+      "unlockScore": 0,
+      "background": {
+        "image": "flappybirdbg.png",
+        "color": "#87CEEB",
+        "parallax": false
+      },
+      "pipes": {
+        "top": "toppipe.png",
+        "bottom": "bottompipe.png",
+        "material": "metal"
+      },
+      "difficulty": {
+        "pipeSpeed": 2.0,
+        "spawnInterval": 1500,
+        "gapSize": 106,
+        "gravity": 0.4,
+        "jumpForce": 6.0,
+        "maxPipes": 8
+      },
+      "effects": {
+        "particles": false,
+        "wind": false,
+        "rain": false
+      },
+      "audio": {
+        "ambientSound": null,
+        "volume": 1.0
+      },
+      "scoring": {
+        "basePoints": 1,
+        "bonusMultiplier": 1.0,
+        "perfectBonus": 0
+      }
+    },
+    "2": {
+      "id": 2,
+      "name": "Infernal World",
+      "description": "Un mundo ardiente lleno de desafíos infernales",
+      "unlockScore": 20,
+      "background": {
+        "image": "Hell.png",
+        "color": "#8B0000",
+        "parallax": true
+      },
+      "pipes": {
+        "top": "toppipe_infernal.png",
+        "bottom": "bottompipe_infernal.png",
+        "material": "lava_rock"
+      },
+      "difficulty": {
+        "pipeSpeed": 2.5,
+        "spawnInterval": 1300,
+        "gapSize": 90,
+        "gravity": 0.45,
+        "jumpForce": 6.2,
+        "maxPipes": 10
+      },
+      "effects": {
+        "particles": true,
+        "particleType": "fire",
+        "wind": true,
+        "windStrength": 0.1,
+        "rain": false,
+        "screenShake": true
+      },
+      "audio": {
+        "ambientSound": "infernal_ambient.wav",
+        "volume": 0.8
+      },
+      "scoring": {
+        "basePoints": 2,
+        "bonusMultiplier": 1.5,
+        "perfectBonus": 5
+      }
+    },
+    "3": {
+      "id": 3,
+      "name": "Space Odyssey",
+      "description": "Vuela através del espacio infinito",
+      "unlockScore": 50,
+      "background": {
+        "image": "space_bg.png",
+        "color": "#000011",
+        "parallax": true,
+        "stars": true
+      },
+      "pipes": {
+        "top": "toppipe_space.png",
+        "bottom": "bottompipe_space.png",
+        "material": "crystal"
+      },
+      "difficulty": {
+        "pipeSpeed": 3.0,
+        "spawnInterval": 1100,
+        "gapSize": 80,
+        "gravity": 0.3,
+        "jumpForce": 7.0,
+        "maxPipes": 12
+      },
+      "effects": {
+        "particles": true,
+        "particleType": "stars",
+        "wind": false,
+        "antigravity": true,
+        "antigravityZones": 3,
+        "screenShake": false
+      },
+      "audio": {
+        "ambientSound": "space_ambient.wav",
+        "volume": 0.6
+      },
+      "scoring": {
+        "basePoints": 3,
+        "bonusMultiplier": 2.0,
+        "perfectBonus": 10
+      }
+    }
+  },
+  "progression": {
+    "scoreThresholds": [0, 20, 50, 100],
+    "unlockMessages": {
+      "2": "¡Has desbloqueado el Mundo Infernal!",
+      "3": "¡Has desbloqueado la Odisea Espacial!"
+    },
+    "achievements": {
+      "first_flight": {
+        "name": "Primer Vuelo",
+        "description": "Completa tu primer vuelo",
+        "requirement": "score >= 1"
+      },
+      "sky_master": {
+        "name": "Maestro del Cielo",
+        "description": "Alcanza 20 puntos en el Mundo Celestial",
+        "requirement": "score >= 20 && level == 1"
+      },
+      "hell_survivor": {
+        "name": "Superviviente del Infierno",
+        "description": "Sobrevive 30 segundos en el Mundo Infernal",
+        "requirement": "time >= 30 && level == 2"
+      },
+      "space_explorer": {
+        "name": "Explorador Espacial",
+        "description": "Alcanza el nivel espacial",
+        "requirement": "level >= 3"
+      }
+    }
+  },
+  "powerups": {
+    "shield": {
+      "name": "Escudo",
+      "description": "Te protege de una colisión",
+      "duration": 5000,
+      "rarity": "common",
+      "effect": "collision_immunity"
+    },
+    "slow_motion": {
+      "name": "Cámara Lenta",
+      "description": "Ralentiza el tiempo por unos segundos",
+      "duration": 3000,
+      "rarity": "rare",
+      "effect": "time_slow"
+    },
+    "double_points": {
+      "name": "Puntos Dobles",
+      "description": "Duplica los puntos por un tiempo",
+      "duration": 10000,
+      "rarity": "uncommon",
+      "effect": "score_multiplier"
+    }
+  },
+  "globalSettings": {
+    "defaultLevel": 1,
+    "maxLevel": 3,
+    "autoProgressLevel": true,
+    "keepLevelOnRestart": false,
+    "showLevelTransitions": true,
+    "levelTransitionDuration": 2000
+  }
+}

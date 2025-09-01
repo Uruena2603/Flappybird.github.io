@@ -1,0 +1,115 @@
+{
+  "game": {
+    "title": "Flappy Bird - Enhanced Edition",
+    "version": "2.0.0",
+    "author": "Uruena2603",
+    "description": "Una versión mejorada del clásico Flappy Bird con múltiples niveles y características avanzadas"
+  },
+  "display": {
+    "canvas": {
+      "width": 360,
+      "height": 640,
+      "backgroundColor": "#87CEEB",
+      "smoothing": true
+    },
+    "ui": {
+      "showFPS": false,
+      "showDebugInfo": false,
+      "fadeTransitions": true,
+      "animationDuration": 300
+    },
+    "responsive": {
+      "enabled": true,
+      "minWidth": 320,
+      "maxWidth": 480,
+      "maintainAspectRatio": true
+    }
+  },
+  "audio": {
+    "enabled": true,
+    "masterVolume": 0.7,
+    "soundEffects": {
+      "enabled": true,
+      "volume": 0.8
+    },
+    "backgroundMusic": {
+      "enabled": true,
+      "volume": 0.5,
+      "loop": true
+    },
+    "preloadAll": true,
+    "fallbackFormat": "wav"
+  },
+  "controls": {
+    "keyboard": {
+      "enabled": true,
+      "jumpKeys": ["Space", "ArrowUp", "KeyX"],
+      "pauseKeys": ["KeyP", "Escape"],
+      "restartKeys": ["KeyR"]
+    },
+    "mouse": {
+      "enabled": true,
+      "jumpOnClick": true
+    },
+    "touch": {
+      "enabled": true,
+      "jumpOnTap": true,
+      "swipeGestures": false
+    },
+    "gamepad": {
+      "enabled": false,
+      "jumpButton": 0
+    }
+  },
+  "gameplay": {
+    "physics": {
+      "gravity": 0.4,
+      "jumpVelocity": -6,
+      "maxFallSpeed": 8,
+      "airResistance": 0.98
+    },
+    "scoring": {
+      "pointsPerPipe": 1,
+      "bonusForPerfectRuns": true,
+      "comboMultiplier": true,
+      "showScorePopups": true
+    },
+    "difficulty": {
+      "adaptive": false,
+      "increaseSpeedOverTime": false,
+      "decreaseGapOverTime": false
+    }
+  },
+  "performance": {
+    "targetFPS": 60,
+    "maxParticles": 100,
+    "enableObjectPooling": true,
+    "cullOffscreenObjects": true,
+    "optimizeRendering": true
+  },
+  "development": {
+    "debugMode": false,
+    "showCollisionBoxes": false,
+    "logPerformance": false,
+    "enableHotReload": false
+  },
+  "storage": {
+    "saveHighScore": true,
+    "saveSettings": true,
+    "saveStatistics": true,
+    "autoSave": true,
+    "compressionEnabled": false
+  },
+  "social": {
+    "shareEnabled": true,
+    "leaderboards": false,
+    "achievements": true,
+    "statistics": true
+  },
+  "accessibility": {
+    "highContrast": false,
+    "reduceMotion": false,
+    "screenReader": false,
+    "colorBlindMode": false
+  }
+}
