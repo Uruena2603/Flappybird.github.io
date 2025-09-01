@@ -32,7 +32,7 @@ const GAME_CONFIG = {
 
   // Sistema de puntuación
   SCORING: {
-    POINTS_PER_PIPE: 0.5,
+    POINTS_PER_PIPE: 1,
     LEVEL_2_THRESHOLD: 20,
   },
 

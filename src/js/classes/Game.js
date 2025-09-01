@@ -157,16 +157,20 @@ class Game {
       case "ArrowUp":
       case "KeyX":
         e.preventDefault();
-        this.controls.jump = true;
+        this.handleJumpInput();
         break;
       case "KeyP":
       case "Escape":
         e.preventDefault();
-        this.controls.pause = true;
+        if (this.currentState === this.states.PLAYING) {
+          this.pause();
+        } else if (this.currentState === this.states.PAUSED) {
+          this.resume();
+        }
         break;
       case "KeyR":
         e.preventDefault();
-        this.controls.restart = true;
+        this.restart();
         break;
       case "KeyD":
         e.preventDefault();
@@ -391,9 +395,6 @@ class Game {
    * Actualiza la lógica del juego
    */
   update(deltaTime) {
-    // Procesar controles
-    this.processControls();
-
     switch (this.currentState) {
       case this.states.PLAYING:
         this.updateGameplay(deltaTime);
@@ -405,19 +406,6 @@ class Game {
 
     // Actualizar efectos visuales
     this.updateVisualEffects(deltaTime);
-  }
-
-  /**
-   * Procesa controles del jugador
-   */
-  processControls() {
-    if (this.controls.pause && this.currentState === this.states.PLAYING) {
-      this.pause();
-    }
-
-    if (this.controls.restart) {
-      this.restart();
-    }
   }
 
   /**
