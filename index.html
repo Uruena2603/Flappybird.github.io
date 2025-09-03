@@ -33,17 +33,28 @@
     <!-- <link rel="icon" type="image/png" sizes="32x32" href="./assets/images/favicon-32x32.png"> -->
   </head>
   <body>
+    <!-- Pantalla de carga profesional -->
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-content">
+        <h1>🎮 Flappy Bird Enhanced</h1>
+        <div class="loading-bar-container">
+          <div id="loading-bar" class="loading-bar"></div>
+        </div>
+        <p id="loading-text">Initializing...</p>
+      </div>
+    </div>
+
     <!-- Contenedor principal del juego -->
     <div class="game-container">
       <canvas id="board" class="level-1" width="360" height="640"></canvas>
     </div>
 
-    <!-- Loading screen (se ocultará cuando el juego esté listo) -->
-    <div id="loading" class="loading" style="display: none">
-      Cargando juego...
-    </div>
+    <!-- Scripts de los managers -->
+    <script src="./src/js/managers/StorageManager.js"></script>
+    <script src="./src/js/managers/AudioManager.js"></script>
+    <script src="./src/js/managers/AssetManager.js"></script>
 
-    <!-- Scripts del juego (clases ES6) -->
+    <!-- Scripts del juego -->
     <script src="./src/js/classes/Bird.js"></script>
     <script src="./src/js/classes/Pipe.js"></script>
     <script src="./src/js/classes/PipePool.js"></script>

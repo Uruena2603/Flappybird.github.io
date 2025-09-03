@@ -84,16 +84,42 @@ const GAME_CONFIG = {
   },
 };
 
+// Managers globales
+let assetManager;
+let audioManager;
+let storageManager;
+
 // Variable global para el juego
 let game;
 
 // Inicialización cuando se carga la página
-window.addEventListener("load", () => {
+window.addEventListener("load", async () => {
   console.log("🎮 Flappy Bird Enhanced Edition - Starting...");
 
   try {
+    // Actualizar texto de carga
+    updateLoadingText("Initializing managers...");
+
+    // Inicializar managers
+    await initializeManagers();
+
+    // Actualizar texto de carga
+    updateLoadingText("Loading assets...");
+
+    // Precargar assets críticos
+    await preloadAssets();
+
+    // Actualizar texto de carga
+    updateLoadingText("Starting game...");
+
     // Crear instancia del juego
     game = new Game("board", GAME_CONFIG);
+
+    // Integrar managers con el juego
+    integrateManagersWithGame();
+
+    // Ocultar pantalla de carga con animación
+    hideLoadingScreen();
 
     // Exponer funciones globales para debugging
     window.FlappyBirdGame = {
@@ -158,23 +184,275 @@ window.addEventListener("beforeunload", () => {
 // Manejo de errores globales
 window.addEventListener("error", (event) => {
   console.error("🚨 Global error:", event.error);
+  showError(`Error: ${event.error.message}`);
 });
 
 // Manejo de errores de promesas no capturadas
 window.addEventListener("unhandledrejection", (event) => {
   console.error("🚨 Unhandled promise rejection:", event.reason);
+  showError(`Promise error: ${event.reason}`);
 });
+
+/**
+ * Inicializa todos los managers
+ */
+async function initializeManagers() {
+  try {
+    console.log("🔧 Initializing managers...");
+
+    // Crear managers
+    assetManager = new AssetManager();
+    audioManager = new AudioManager();
+    storageManager = new StorageManager("flappy-bird-enhanced");
+
+    // Cargar configuración guardada
+    const savedConfig = storageManager.loadConfig();
+
+    // Aplicar configuración de audio
+    audioManager.setEffectsVolume(savedConfig.audio.effectsVolume);
+    audioManager.setMusicVolume(savedConfig.audio.musicVolume);
+    if (savedConfig.audio.muted) {
+      audioManager.toggleMute();
+    }
+
+    console.log("✅ Managers initialized successfully!");
+  } catch (error) {
+    console.error("❌ Error initializing managers:", error);
+    throw error;
+  }
+}
+
+/**
+ * Precarga los assets críticos del juego
+ */
+async function preloadAssets() {
+  try {
+    console.log("📦 Preloading assets...");
+
+    // Configurar callbacks de progreso
+    assetManager.setProgressCallbacks(
+      (progress) => {
+        updateLoadingProgress(progress);
+      },
+      () => {
+        console.log("✅ All assets loaded!");
+      }
+    );
+
+    // Lista de assets críticos
+    const assetList = [
+      // Imágenes esenciales
+      { type: "image", key: "BIRD", src: GAME_CONFIG.ASSETS.IMAGES.BIRD },
+      {
+        type: "image",
+        key: "BACKGROUND_LEVEL_1",
+        src: GAME_CONFIG.ASSETS.IMAGES.BACKGROUND_LEVEL_1,
+      },
+      {
+        type: "image",
+        key: "TOP_PIPE_LEVEL_1",
+        src: GAME_CONFIG.ASSETS.IMAGES.TOP_PIPE_LEVEL_1,
+      },
+      {
+        type: "image",
+        key: "BOTTOM_PIPE_LEVEL_1",
+        src: GAME_CONFIG.ASSETS.IMAGES.BOTTOM_PIPE_LEVEL_1,
+      },
+      {
+        type: "image",
+        key: "BACKGROUND_LEVEL_2",
+        src: GAME_CONFIG.ASSETS.IMAGES.BACKGROUND_LEVEL_2,
+      },
+      {
+        type: "image",
+        key: "TOP_PIPE_LEVEL_2",
+        src: GAME_CONFIG.ASSETS.IMAGES.TOP_PIPE_LEVEL_2,
+      },
+      {
+        type: "image",
+        key: "BOTTOM_PIPE_LEVEL_2",
+        src: GAME_CONFIG.ASSETS.IMAGES.BOTTOM_PIPE_LEVEL_2,
+      },
+
+      // Audio
+      { type: "sound", key: "JUMP", src: GAME_CONFIG.ASSETS.AUDIO.JUMP },
+      {
+        type: "sound",
+        key: "GAME_OVER",
+        src: GAME_CONFIG.ASSETS.AUDIO.GAME_OVER,
+      },
+      { type: "sound", key: "SCORE", src: GAME_CONFIG.ASSETS.AUDIO.SCORE },
+    ];
+
+    // Cargar todos los assets
+    await assetManager.loadAssets(assetList);
+
+    console.log("✅ Assets preloaded successfully!");
+  } catch (error) {
+    console.error("❌ Error preloading assets:", error);
+    // No bloqueamos el juego por errores de assets
+  }
+}
+
+/**
+ * Integra los managers con el juego
+ */
+function integrateManagersWithGame() {
+  try {
+    console.log("🔗 Integrating managers with game...");
+
+    // Registrar sonidos en el AudioManager
+    if (assetManager.getSound("JUMP")) {
+      audioManager.registerSound(
+        "JUMP",
+        assetManager.getSound("JUMP"),
+        "effect"
+      );
+    }
+    if (assetManager.getSound("GAME_OVER")) {
+      audioManager.registerSound(
+        "GAME_OVER",
+        assetManager.getSound("GAME_OVER"),
+        "effect"
+      );
+    }
+    if (assetManager.getSound("SCORE")) {
+      audioManager.registerSound(
+        "SCORE",
+        assetManager.getSound("SCORE"),
+        "effect"
+      );
+    }
+
+    // Agregar managers al objeto global de debugging
+    window.FlappyBirdGame.managers = {
+      asset: assetManager,
+      audio: audioManager,
+      storage: storageManager,
+    };
+
+    // Agregar funciones adicionales de debugging
+    window.FlappyBirdGame.debug = {
+      ...window.FlappyBirdGame.debug,
+      getManagerStats: () => ({
+        assets: assetManager.getStats(),
+        audio: audioManager.getStats(),
+        storage: storageManager.getStorageUsage(),
+      }),
+      exportSave: () => storageManager.exportData(),
+      importSave: (data) => storageManager.importData(data),
+      clearSave: () => storageManager.clearAll(),
+      setVolume: (type, volume) => {
+        if (type === "effects") audioManager.setEffectsVolume(volume);
+        if (type === "music") audioManager.setMusicVolume(volume);
+      },
+      toggleMute: () => audioManager.toggleMute(),
+    };
+
+    console.log("✅ Managers integrated successfully!");
+  } catch (error) {
+    console.error("❌ Error integrating managers:", error);
+  }
+}
+
+/**
+ * Actualiza el texto de la pantalla de carga
+ */
+function updateLoadingText(text) {
+  const loadingText = document.getElementById("loading-text");
+  if (loadingText) {
+    loadingText.textContent = text;
+  }
+}
+
+/**
+ * Actualiza la barra de progreso
+ */
+function updateLoadingProgress(progress) {
+  const loadingBar = document.getElementById("loading-bar");
+  const loadingText = document.getElementById("loading-text");
+
+  if (loadingBar) {
+    loadingBar.style.width = `${progress * 100}%`;
+  }
+
+  if (loadingText) {
+    const percentage = Math.round(progress * 100);
+    loadingText.textContent = `Loading assets... ${percentage}%`;
+  }
+}
+
+/**
+ * Oculta la pantalla de carga con animación suave
+ */
+function hideLoadingScreen() {
+  const loadingScreen = document.getElementById("loading-screen");
+  if (loadingScreen) {
+    loadingScreen.style.opacity = "0";
+    setTimeout(() => {
+      loadingScreen.style.display = "none";
+      console.log("✅ Loading screen hidden - Game ready!");
+    }, 500);
+  }
+}
+
+/**
+ * Muestra un mensaje de error
+ */
+function showError(message) {
+  console.error("❌ Error:", message);
+
+  // Oculta la pantalla de carga
+  hideLoadingScreen();
+
+  // Crear elemento de error
+  const errorDiv = document.createElement("div");
+  errorDiv.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #ff4444;
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 10000;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  `;
+  errorDiv.innerHTML = `
+    <h3>⚠️ Error</h3>
+    <p>${message}</p>
+    <button onclick="location.reload()" style="
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: white;
+      color: #ff4444;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    ">Reload Game</button>
+  `;
+  document.body.appendChild(errorDiv);
+}
 
 // Información de desarrollo
 console.log("🎮 Flappy Bird Enhanced Edition");
-console.log("📱 Version: 2.0.0");
+console.log("📱 Version: 2.0.0 with Managers");
 console.log("👨‍💻 Developer: Uruena2603");
-console.log("🏗️ Architecture: Modern ES6 Classes with Object Pooling");
-console.log("⚡ Features: Multi-level, Advanced Physics, Visual Effects");
+console.log("🏗️ Architecture: Modern ES6 Classes with Professional Managers");
+console.log("⚡ Features: Asset Management, Audio System, Data Persistence");
 console.log("");
 console.log("🎯 Controls:");
 console.log("   SPACE / UP ARROW / X / CLICK - Jump");
 console.log("   P / ESC - Pause");
 console.log("   R - Restart");
 console.log("   D - Toggle Debug Mode");
+console.log("");
+console.log("🔧 Debugging:");
+console.log("   FlappyBirdGame.debug.getManagerStats() - Manager statistics");
+console.log("   FlappyBirdGame.debug.setVolume('effects', 0.5) - Set volume");
+console.log("   FlappyBirdGame.debug.toggleMute() - Toggle audio");
 console.log("");
