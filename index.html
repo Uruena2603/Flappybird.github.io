@@ -49,10 +49,35 @@
       <canvas id="board" class="level-1" width="360" height="640"></canvas>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- Firebase Configuration (carga condicionalmente) -->
+    <script>
+      // Intentar cargar configuración de Firebase
+      try {
+        const script = document.createElement("script");
+        script.src = "./firebase-config.js";
+        script.onerror = function () {
+          console.log(
+            "🔥 Firebase: Archivo de configuración no encontrado, continuando sin Firebase"
+          );
+        };
+        document.head.appendChild(script);
+      } catch (error) {
+        console.log(
+          "🔥 Firebase: Error cargando configuración, continuando sin Firebase"
+        );
+      }
+    </script>
+
     <!-- Scripts de los managers -->
     <script src="./src/js/managers/StorageManager.js"></script>
     <script src="./src/js/managers/AudioManager.js"></script>
     <script src="./src/js/managers/AssetManager.js"></script>
+    <script src="./src/js/managers/FirebaseManager.js"></script>
 
     <!-- Scripts del juego -->
     <script src="./src/js/classes/Bird.js"></script>

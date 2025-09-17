@@ -88,6 +88,7 @@ const GAME_CONFIG = {
 let assetManager;
 let audioManager;
 let storageManager;
+let firebaseManager;
 
 // Variable global para el juego
 let game;
@@ -200,10 +201,16 @@ async function initializeManagers() {
   try {
     console.log("🔧 Initializing managers...");
 
-    // Crear managers
+    // Crear managers básicos
     assetManager = new AssetManager();
     audioManager = new AudioManager();
     storageManager = new StorageManager("flappy-bird-enhanced");
+
+    // Crear FirebaseManager (opcional)
+    firebaseManager = new FirebaseManager();
+
+    // Intentar inicializar Firebase si está configurado
+    await initializeFirebase();
 
     // Cargar configuración guardada
     const savedConfig = storageManager.loadConfig();
@@ -219,6 +226,57 @@ async function initializeManagers() {
   } catch (error) {
     console.error("❌ Error initializing managers:", error);
     throw error;
+  }
+}
+
+/**
+ * Inicializar Firebase si está disponible
+ */
+async function initializeFirebase() {
+  try {
+    // Verificar si Firebase está disponible y configurado
+    if (typeof FIREBASE_CONFIG === "undefined") {
+      console.log(
+        "🔥 Firebase: Configuración no encontrada, continuando sin Firebase"
+      );
+      return false;
+    }
+
+    if (!isFirebaseConfigured || !isFirebaseConfigured()) {
+      console.log("🔥 Firebase: No configurado, continuando en modo offline");
+      return false;
+    }
+
+    console.log("🔥 Firebase: Inicializando...");
+    const success = await firebaseManager.initialize(FIREBASE_CONFIG);
+
+    if (success) {
+      console.log("🔥 Firebase: ✅ Inicializado correctamente");
+
+      // Configurar callbacks para eventos de Firebase
+      firebaseManager.onAuthStateChanged((authState, user) => {
+        console.log(`🔥 Firebase: Estado de auth cambió a ${authState}`);
+        // TODO: Actualizar UI según estado de auth
+      });
+
+      firebaseManager.onConnectionStateChanged((isOnline) => {
+        console.log(`🔥 Firebase: Conexión ${isOnline ? "online" : "offline"}`);
+        // TODO: Mostrar indicador de estado de conexión
+      });
+
+      return true;
+    } else {
+      console.log(
+        "🔥 Firebase: ⚠️ Error en inicialización, continuando sin Firebase"
+      );
+      return false;
+    }
+  } catch (error) {
+    console.warn(
+      "🔥 Firebase: ⚠️ Error inesperado, continuando sin Firebase:",
+      error
+    );
+    return false;
   }
 }
 
@@ -324,30 +382,38 @@ function integrateManagersWithGame() {
       );
     }
 
-    // Agregar managers al objeto global de debugging
-    window.FlappyBirdGame.managers = {
-      asset: assetManager,
-      audio: audioManager,
-      storage: storageManager,
-    };
+    // Agregar managers al objeto global de debugging (si existe)
+    if (typeof window.FlappyBirdGame !== "undefined") {
+      window.FlappyBirdGame.managers = {
+        asset: assetManager,
+        audio: audioManager,
+        storage: storageManager,
+        firebase: firebaseManager,
+      };
 
-    // Agregar funciones adicionales de debugging
-    window.FlappyBirdGame.debug = {
-      ...window.FlappyBirdGame.debug,
-      getManagerStats: () => ({
-        assets: assetManager.getStats(),
-        audio: audioManager.getStats(),
-        storage: storageManager.getStorageUsage(),
-      }),
-      exportSave: () => storageManager.exportData(),
-      importSave: (data) => storageManager.importData(data),
-      clearSave: () => storageManager.clearAll(),
-      setVolume: (type, volume) => {
-        if (type === "effects") audioManager.setEffectsVolume(volume);
-        if (type === "music") audioManager.setMusicVolume(volume);
-      },
-      toggleMute: () => audioManager.toggleMute(),
-    };
+      // Agregar funciones adicionales de debugging
+      window.FlappyBirdGame.debug = {
+        ...window.FlappyBirdGame.debug,
+        getManagerStats: () => ({
+          assets: assetManager.getStats(),
+          audio: audioManager.getStats(),
+          storage: storageManager.getStorageUsage(),
+          firebase: firebaseManager ? firebaseManager.getDebugInfo() : null,
+        }),
+        exportSave: () => storageManager.exportData(),
+        importSave: (data) => storageManager.importData(data),
+        clearSave: () => storageManager.clearAll(),
+        setVolume: (type, volume) => {
+          if (type === "effects") audioManager.setEffectsVolume(volume);
+          if (type === "music") audioManager.setMusicVolume(volume);
+        },
+        toggleMute: () => audioManager.toggleMute(),
+      };
+    } else {
+      console.log(
+        "⚠️ FlappyBirdGame object not yet available for debug integration"
+      );
+    }
 
     console.log("✅ Managers integrated successfully!");
   } catch (error) {
