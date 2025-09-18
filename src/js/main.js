@@ -235,15 +235,22 @@ async function initializeManagers() {
 async function initializeFirebase() {
   try {
     // Verificar si Firebase está disponible y configurado usando la nueva API
-    if (typeof window.getFirebaseConfig !== 'function' || typeof window.isFirebaseConfigured !== 'function') {
-      console.log("🔥 Firebase: firebase-config.js no cargado, continuando sin Firebase");
+    if (
+      typeof window.getFirebaseConfig !== "function" ||
+      typeof window.isFirebaseConfigured !== "function"
+    ) {
+      console.log(
+        "🔥 Firebase: firebase-config.js no cargado, continuando sin Firebase"
+      );
       return false;
     }
 
     // Usar la nueva función de configuración
     const firebaseConfig = window.getFirebaseConfig();
     if (!firebaseConfig) {
-      console.log("🔥 Firebase: Configuración no válida, continuando en modo offline");
+      console.log(
+        "🔥 Firebase: Configuración no válida, continuando en modo offline"
+      );
       return false;
     }
 

@@ -18,11 +18,11 @@ Edita `firebase-config.js` y reemplaza los placeholders con tus credenciales rea
 ```javascript
 const FIREBASE_CONFIG = {
   apiKey: "TU_API_KEY_AQUI",
-  authDomain: "tu-proyecto.firebaseapp.com", 
+  authDomain: "tu-proyecto.firebaseapp.com",
   projectId: "tu-proyecto-id",
   storageBucket: "tu-proyecto.firebasestorage.app",
   messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef1234567890"
+  appId: "1:123456789012:web:abcdef1234567890",
 };
 ```
 
@@ -30,7 +30,7 @@ const FIREBASE_CONFIG = {
 
 1. Ve a [Firebase Console](https://console.firebase.google.com)
 2. Crea un nuevo proyecto o selecciona uno existente
-3. Ve a "Project Settings" > "General" 
+3. Ve a "Project Settings" > "General"
 4. En "Your apps", haz click en el ícono web `</>`
 5. Registra tu app y copia la configuración
 
@@ -39,11 +39,13 @@ const FIREBASE_CONFIG = {
 En Firebase Console:
 
 #### Authentication:
+
 - Ve a "Authentication" > "Sign-in method"
 - Habilita "Google" y "Anonymous"
 - Configura el dominio autorizado (tu-usuario.github.io)
 
 #### Firestore:
+
 - Ve a "Firestore Database"
 - Crea una base de datos en modo producción
 - Configura las reglas de seguridad:
@@ -57,7 +59,7 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null;
     }
-    
+
     // Permitir lectura/escritura de datos de usuario solo para el usuario autenticado
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -71,11 +73,13 @@ service cloud.firestore {
 Para desarrollo local, tienes dos opciones:
 
 ### Opción A: Con Firebase (Recomendado)
+
 1. Copia el template: `cp firebase-config.template.js firebase-config.js`
 2. Configura las credenciales reales
 3. El juego tendrá todas las funciones de Firebase
 
 ### Opción B: Sin Firebase
+
 1. No copies el archivo de configuración
 2. El juego funcionará en modo offline sin leaderboard
 
@@ -98,15 +102,18 @@ Para desarrollo local, tienes dos opciones:
 ## 🐛 Solución de Problemas
 
 ### Error: "firebase-config.js not found"
+
 - Asegúrate de crear el archivo manualmente en GitHub Pages
 - Verifica que el nombre del archivo sea exacto: `firebase-config.js`
 
 ### Error: "Firebase not configured"
+
 - Verifica que todas las credenciales estén correctas
 - Revisa la consola del navegador para más detalles
 - Asegúrate de haber habilitado Authentication y Firestore
 
 ### Error: "Permission denied"
+
 - Revisa las reglas de Firestore
 - Verifica que el dominio esté autorizado en Firebase Console
 - Asegúrate de que el usuario esté autenticado
@@ -114,15 +121,17 @@ Para desarrollo local, tienes dos opciones:
 ## 📊 Modo Offline
 
 Si Firebase no está configurado, el juego funciona en "modo offline":
+
 - ✅ Gameplay completo funcional
 - ✅ Puntuaciones locales (localStorage)
-- ❌ Sin registro de usuarios  
+- ❌ Sin registro de usuarios
 - ❌ Sin leaderboard global
 - ❌ Sin sincronización entre dispositivos
 
 ## 🎯 Siguiente Paso: Etapa 4
 
 Una vez configurado Firebase en producción, puedes continuar con:
+
 - **Etapa 4**: Sistema de nicknames para usuarios
 - **Etapa 5**: Backend del leaderboard
 - **Etapa 6**: UI mejorada del leaderboard

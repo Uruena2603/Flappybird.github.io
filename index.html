@@ -57,18 +57,22 @@
     <!-- Firebase Configuration - Carga condicional para desarrollo/producción -->
     <script>
       // Intentar cargar configuración de Firebase
-      (function() {
-        const script = document.createElement('script');
-        script.src = './firebase-config.js';
-        script.onerror = function() {
-          console.log('🔥 Firebase: Configuración no encontrada - ejecutando en modo offline');
-          console.log('ℹ️  Para habilitar Firebase, consulta FIREBASE_SETUP.md');
-          
+      (function () {
+        const script = document.createElement("script");
+        script.src = "./firebase-config.js";
+        script.onerror = function () {
+          console.log(
+            "🔥 Firebase: Configuración no encontrada - ejecutando en modo offline"
+          );
+          console.log(
+            "ℹ️  Para habilitar Firebase, consulta FIREBASE_SETUP.md"
+          );
+
           // Crear configuración dummy para evitar errores
           window.getFirebaseConfig = () => null;
           window.isFirebaseConfigured = () => false;
           window.initializeFirebaseConfig = () => false;
-          window.isDevelopment = window.location.hostname === 'localhost';
+          window.isDevelopment = window.location.hostname === "localhost";
         };
         document.head.appendChild(script);
       })();
