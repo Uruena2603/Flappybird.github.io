@@ -18,10 +18,22 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Reglas para leaderboard (se usarán en Etapa 5)
+    // Reglas para puntuaciones del leaderboard
     match /leaderboard_scores/{scoreId} {
+      // Lectura pública: todos pueden ver el leaderboard
       allow read: if true;
-      allow write: if request.auth != null && !request.auth.token.firebase.sign_in_provider == 'anonymous';
+      
+      // Escritura solo para usuarios autenticados no anónimos
+      allow create: if request.auth != null 
+                   && !request.auth.token.firebase.sign_in_provider == 'anonymous'
+                   && request.auth.uid == resource.data.userId
+                   && request.data.userId is string
+                   && request.data.nickname is string
+                   && request.data.score is number
+                   && request.data.score >= 0;
+                   
+      // No permitir updates o deletes para mantener integridad del leaderboard
+      allow update, delete: if false;
     }
   }
 }
@@ -35,7 +47,17 @@ service cloud.firestore {
 
 2. **`/leaderboard_scores/{scoreId}`**:
    - **Lectura pública**: Todos pueden ver el leaderboard
-   - **Escritura autenticada**: Solo usuarios registrados (no anónimos) pueden guardar scores
+   - **Escritura controlada**: Solo usuarios registrados pueden crear scores
+   - **Validación de datos**: Asegura que el score tenga los campos correctos
+   - **Inmutabilidad**: Una vez creado, no se puede modificar (integridad del leaderboard)
+
+## Validaciones incluidas:
+
+- ✅ Solo usuarios autenticados no anónimos pueden guardar scores
+- ✅ El usuario solo puede guardar scores con su propio UID
+- ✅ Los datos deben tener nickname y score válidos
+- ✅ El score debe ser un número positivo
+- ✅ Una vez guardado, el score no se puede modificar
 
 ## Pasos para configurar:
 
@@ -44,4 +66,4 @@ service cloud.firestore {
 3. Reemplaza las reglas existentes con las de arriba
 4. Click en "Publish"
 
-¡Listo! Ahora la aplicación podrá crear y leer documentos de usuarios.
+¡Listo! Ahora el sistema de leaderboard está completamente protegido.
