@@ -180,18 +180,59 @@ class Game {
   }
 
   /**
-   * Configura event listeners
+   * Verifica si hay un modal activo (NUEVO)
+   * @returns {boolean}
+   */
+  isModalActive() {
+    // Verificar si existe algún modal en el DOM
+    const modals = [
+      document.querySelector('.nickname-modal-overlay'),
+      document.querySelector('.registration-modal-overlay'),
+      // Agregar otros modales aquí en el futuro
+    ];
+
+    return modals.some(modal => modal !== null);
+  }
+
+  /**
+   * Configura event listeners (MEJORADO PARA MODALES)
    */
   setupEventListeners() {
-    // Teclado
-    document.addEventListener("keydown", (e) => this.handleKeyDown(e));
-    document.addEventListener("keyup", (e) => this.handleKeyUp(e));
+    // Prevenir comportamiento por defecto en teclas de juego
+    document.addEventListener("keydown", (e) => {
+      // NUEVO: Verificar si hay un modal activo
+      if (this.isModalActive()) {
+        // Si hay modal activo, NO procesar controles de juego
+        return;
+      }
 
-    // Mouse
-    this.canvas.addEventListener("click", (e) => this.handleClick(e));
+      // Solo procesar controles de juego si NO hay modal
+      this.handleKeyDown(e);
+    });
 
-    // Touch
-    this.canvas.addEventListener("touchstart", (e) => this.handleTouch(e));
+    document.addEventListener("keyup", (e) => {
+      // NUEVO: Verificar si hay un modal activo
+      if (this.isModalActive()) {
+        return;
+      }
+
+      this.handleKeyUp(e);
+    });
+
+    // Touch/Click events - también verificar modales
+    this.canvas.addEventListener("click", (e) => {
+      if (this.isModalActive()) {
+        return;
+      }
+      this.handleClick(e);
+    });
+
+    this.canvas.addEventListener("touchstart", (e) => {
+      if (this.isModalActive()) {
+        return;
+      }
+      this.handleTouch(e);
+    });
 
     // Prevenir contexto de click derecho
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -205,9 +246,14 @@ class Game {
   }
 
   /**
-   * Maneja eventos de teclado (presionar)
+   * Maneja eventos de teclado (presionar) - MEJORADO CON VERIFICACIÓN DE MODAL
    */
   handleKeyDown(e) {
+    // CRÍTICO: No procesar si hay modal activo
+    if (this.isModalActive()) {
+      return;
+    }
+
     switch (e.code) {
       case "Space":
       case "ArrowUp":
@@ -226,7 +272,10 @@ class Game {
         break;
       case "KeyR":
         e.preventDefault();
-        this.restart();
+        // NUEVO: Solo reiniciar si NO hay modal activo
+        if (!this.isModalActive()) {
+          this.restart();
+        }
         break;
       case "KeyD":
         e.preventDefault();
@@ -407,6 +456,7 @@ class Game {
               id="nickname-input" 
               placeholder="Ingresa tu nickname..." 
               maxlength="20"
+              autocomplete="off"
               autofocus
             >
             <div class="nickname-counter">
@@ -436,8 +486,18 @@ class Game {
       const errorDiv = overlay.querySelector("#nickname-error");
       const counter = overlay.querySelector("#char-counter");
 
+      // CRÍTICO: Función de limpieza
+      const cleanup = () => {
+        if (overlay.parentNode) {
+          document.body.removeChild(overlay);
+        }
+      };
+
       // Validación en tiempo real
-      input.addEventListener("input", () => {
+      input.addEventListener("input", (e) => {
+        // NUEVO: Prevenir que el evento llegue al juego
+        e.stopPropagation();
+        
         const value = input.value.trim();
         const length = value.length;
 
@@ -469,6 +529,30 @@ class Game {
         }
       });
 
+      // NUEVO: Manejar eventos de teclado específicamente para el modal
+      input.addEventListener('keydown', (e) => {
+        // CRÍTICO: Prevenir que lleguen al listener global del juego
+        e.stopPropagation();
+        
+        if (e.key === 'Enter' && !confirmBtn.disabled) {
+          e.preventDefault();
+          confirmBtn.click();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelBtn.click();
+        }
+        // Para cualquier otra tecla (incluida 'r'), permitir comportamiento normal del input
+      });
+
+      // Prevenir eventos en todo el modal
+      overlay.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+      });
+
+      overlay.addEventListener('keyup', (e) => {
+        e.stopPropagation();
+      });
+
       // Confirmar nickname
       confirmBtn.addEventListener("click", async () => {
         const nickname = input.value.trim();
@@ -486,7 +570,7 @@ class Game {
 
         try {
           await this.firebaseManager.setUserNickname(nickname);
-          document.body.removeChild(overlay);
+          cleanup();
           resolve(nickname);
         } catch (error) {
           confirmBtn.textContent = "Confirmar";
@@ -497,7 +581,7 @@ class Game {
 
       // Cancelar
       cancelBtn.addEventListener("click", () => {
-        document.body.removeChild(overlay);
+        cleanup();
         reject(new Error("Configuración de nickname cancelada"));
       });
 
@@ -510,8 +594,12 @@ class Game {
         }
       });
 
-      // Focus automático en el input
-      setTimeout(() => input.focus(), 100);
+      // Focus automático con delay
+      setTimeout(() => {
+        input.focus();
+        // NUEVO: Seleccionar todo el texto si hay contenido previo
+        input.select();
+      }, 100);
     });
   }
 
@@ -576,12 +664,15 @@ class Game {
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.8);
+        background: rgba(0, 0, 0, 0.85);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 10000;
         animation: fadeIn 0.3s ease-out;
+        
+        /* NUEVO: Asegurar que capture todos los eventos */
+        pointer-events: all;
       }
 
       .nickname-modal {
@@ -590,9 +681,13 @@ class Game {
         padding: 30px;
         max-width: 400px;
         width: 90%;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
         animation: slideIn 0.4s ease-out;
         border: 2px solid #3498db;
+        
+        /* NUEVO: Evitar que eventos atraviesen el modal */
+        pointer-events: all;
+        position: relative;
       }
 
       .nickname-header h2 {
@@ -600,6 +695,7 @@ class Game {
         margin-bottom: 10px;
         text-align: center;
         font-size: 1.5em;
+        user-select: none;
       }
 
       .nickname-header p {
@@ -607,6 +703,7 @@ class Game {
         text-align: center;
         margin-bottom: 20px;
         font-size: 0.9em;
+        user-select: none;
       }
 
       .nickname-form input {
@@ -620,17 +717,30 @@ class Game {
         font-family: inherit;
         transition: border-color 0.3s;
         box-sizing: border-box;
+        
+        /* NUEVO: Asegurar que el input sea interactivo */
+        pointer-events: all;
+        user-select: text;
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
       }
 
       .nickname-form input:focus {
         outline: none;
         border-color: #2ecc71;
         box-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
+        background: #fff;
       }
 
       .nickname-form input.error {
         border-color: #e74c3c;
         box-shadow: 0 0 10px rgba(231, 76, 60, 0.3);
+      }
+
+      /* NUEVO: Estilo especial cuando el input está activo */
+      .nickname-form input:focus::placeholder {
+        opacity: 0.5;
       }
 
       .nickname-counter {
@@ -639,6 +749,7 @@ class Game {
         color: #95a5a6;
         font-size: 0.8em;
         transition: color 0.3s;
+        user-select: none;
       }
 
       .nickname-suggestions {
@@ -646,6 +757,7 @@ class Game {
         margin-top: 5px;
         color: #7f8c8d;
         font-size: 0.75em;
+        user-select: none;
       }
 
       .nickname-error {
@@ -657,6 +769,7 @@ class Game {
         border-radius: 5px;
         border: 1px solid rgba(231, 76, 60, 0.3);
         font-size: 0.85em;
+        user-select: none;
       }
 
       .nickname-error.shake {
@@ -679,6 +792,7 @@ class Game {
         cursor: pointer;
         transition: all 0.3s;
         font-family: inherit;
+        user-select: none;
       }
 
       .btn-primary {
@@ -731,15 +845,17 @@ class Game {
         75% { transform: translateX(5px); }
       }
 
-      /* Responsive */
+      /* Responsive mejorado */
       @media (max-width: 480px) {
         .nickname-modal {
           width: 95%;
           padding: 20px;
+          margin: 10px;
         }
         
         .nickname-actions {
           flex-direction: column;
+          gap: 10px;
         }
       }
     `;
