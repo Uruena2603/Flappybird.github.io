@@ -344,14 +344,16 @@ class Game {
    */
   async showLeaderboard() {
     console.log("🔥 Game: Abriendo leaderboard...");
-    
+
     try {
       // Verificar si el usuario necesita configurar nickname
       const needsSetup = await this.firebaseManager.needsNicknameSetup();
-      
+
       if (needsSetup) {
-        console.log("🔥 Game: Usuario necesita configurar nickname personalizado");
-        
+        console.log(
+          "🔥 Game: Usuario necesita configurar nickname personalizado"
+        );
+
         try {
           const nickname = await this.showNicknameModal();
           console.log("🔥 Game: ✅ Nickname configurado:", nickname);
@@ -361,18 +363,22 @@ class Game {
           return;
         }
       }
-      
+
       // Continuar con el leaderboard (se implementará en Etapa 6)
-      console.log("🔥 Game: Leaderboard con nickname listo - implementar UI en Etapa 6");
-      
+      console.log(
+        "🔥 Game: Leaderboard con nickname listo - implementar UI en Etapa 6"
+      );
+
       // Temporal: Mostrar mensaje de éxito
       const currentNickname = await this.firebaseManager.getUserNickname();
-      this.showTemporaryMessage(`🎮 ¡Listo, ${currentNickname}!`, "Leaderboard se implementará en la siguiente etapa");
-      
+      this.showTemporaryMessage(
+        `🎮 ¡Listo, ${currentNickname}!`,
+        "Leaderboard se implementará en la siguiente etapa"
+      );
+
       setTimeout(() => {
         this.restart();
       }, 3000);
-      
     } catch (error) {
       console.error("🔥 Game: Error mostrando leaderboard:", error);
       this.restart();
@@ -386,8 +392,8 @@ class Game {
   async showNicknameModal() {
     return new Promise((resolve, reject) => {
       // Crear overlay del modal
-      const overlay = document.createElement('div');
-      overlay.className = 'nickname-modal-overlay';
+      const overlay = document.createElement("div");
+      overlay.className = "nickname-modal-overlay";
       overlay.innerHTML = `
         <div class="nickname-modal">
           <div class="nickname-header">
@@ -424,52 +430,58 @@ class Game {
 
       // Referencias a elementos
       document.body.appendChild(overlay);
-      const input = overlay.querySelector('#nickname-input');
-      const confirmBtn = overlay.querySelector('#confirm-nickname');
-      const cancelBtn = overlay.querySelector('#cancel-nickname');
-      const errorDiv = overlay.querySelector('#nickname-error');
-      const counter = overlay.querySelector('#char-counter');
+      const input = overlay.querySelector("#nickname-input");
+      const confirmBtn = overlay.querySelector("#confirm-nickname");
+      const cancelBtn = overlay.querySelector("#cancel-nickname");
+      const errorDiv = overlay.querySelector("#nickname-error");
+      const counter = overlay.querySelector("#char-counter");
 
       // Validación en tiempo real
-      input.addEventListener('input', () => {
+      input.addEventListener("input", () => {
         const value = input.value.trim();
         const length = value.length;
-        
+
         counter.textContent = `${length}/20`;
-        
+
         // Validación de caracteres
         const validChars = /^[a-zA-Z0-9\s\-_]*$/;
         const isValidChars = validChars.test(value);
-        
+
         if (length >= 2 && length <= 20 && isValidChars) {
           confirmBtn.disabled = false;
-          confirmBtn.classList.remove('disabled');
-          input.classList.remove('error');
-          errorDiv.style.display = 'none';
-          
+          confirmBtn.classList.remove("disabled");
+          input.classList.remove("error");
+          errorDiv.style.display = "none";
+
           // Cambiar color del contador a verde
-          counter.style.color = '#2ecc71';
+          counter.style.color = "#2ecc71";
         } else {
           confirmBtn.disabled = true;
-          confirmBtn.classList.add('disabled');
-          counter.style.color = length > 20 ? '#e74c3c' : '#95a5a6';
-          
+          confirmBtn.classList.add("disabled");
+          counter.style.color = length > 20 ? "#e74c3c" : "#95a5a6";
+
           if (!isValidChars && value.length > 0) {
-            this.showNicknameError(errorDiv, 'Solo se permiten letras, números, espacios y guiones');
+            this.showNicknameError(
+              errorDiv,
+              "Solo se permiten letras, números, espacios y guiones"
+            );
           }
         }
       });
 
       // Confirmar nickname
-      confirmBtn.addEventListener('click', async () => {
+      confirmBtn.addEventListener("click", async () => {
         const nickname = input.value.trim();
-        
+
         if (nickname.length < 2) {
-          this.showNicknameError(errorDiv, 'El nickname debe tener al menos 2 caracteres');
+          this.showNicknameError(
+            errorDiv,
+            "El nickname debe tener al menos 2 caracteres"
+          );
           return;
         }
 
-        confirmBtn.textContent = 'Verificando...';
+        confirmBtn.textContent = "Verificando...";
         confirmBtn.disabled = true;
 
         try {
@@ -477,23 +489,23 @@ class Game {
           document.body.removeChild(overlay);
           resolve(nickname);
         } catch (error) {
-          confirmBtn.textContent = 'Confirmar';
+          confirmBtn.textContent = "Confirmar";
           confirmBtn.disabled = false;
           this.showNicknameError(errorDiv, error.message);
         }
       });
 
       // Cancelar
-      cancelBtn.addEventListener('click', () => {
+      cancelBtn.addEventListener("click", () => {
         document.body.removeChild(overlay);
-        reject(new Error('Configuración de nickname cancelada'));
+        reject(new Error("Configuración de nickname cancelada"));
       });
 
       // Enter para confirmar, Escape para cancelar
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !confirmBtn.disabled) {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !confirmBtn.disabled) {
           confirmBtn.click();
-        } else if (e.key === 'Escape') {
+        } else if (e.key === "Escape") {
           cancelBtn.click();
         }
       });
@@ -508,11 +520,11 @@ class Game {
    */
   showNicknameError(errorDiv, message) {
     errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
-    errorDiv.classList.add('shake');
-    
+    errorDiv.style.display = "block";
+    errorDiv.classList.add("shake");
+
     setTimeout(() => {
-      errorDiv.classList.remove('shake');
+      errorDiv.classList.remove("shake");
     }, 500);
   }
 
@@ -520,7 +532,7 @@ class Game {
    * Muestra mensaje temporal en pantalla
    */
   showTemporaryMessage(title, subtitle) {
-    const overlay = document.createElement('div');
+    const overlay = document.createElement("div");
     overlay.innerHTML = `
       <div style="
         position: fixed;
@@ -541,9 +553,9 @@ class Game {
         </div>
       </div>
     `;
-    
+
     document.body.appendChild(overlay);
-    
+
     setTimeout(() => {
       document.body.removeChild(overlay);
     }, 3000);
@@ -553,10 +565,10 @@ class Game {
    * Agrega estilos CSS para el modal de nickname
    */
   addNicknameModalStyles() {
-    if (document.getElementById('nickname-modal-styles')) return;
+    if (document.getElementById("nickname-modal-styles")) return;
 
-    const style = document.createElement('style');
-    style.id = 'nickname-modal-styles';
+    const style = document.createElement("style");
+    style.id = "nickname-modal-styles";
     style.textContent = `
       .nickname-modal-overlay {
         position: fixed;
@@ -731,7 +743,7 @@ class Game {
         }
       }
     `;
-    
+
     document.head.appendChild(style);
   }
 
