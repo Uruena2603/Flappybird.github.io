@@ -501,15 +501,16 @@ class Game {
    */
   async handleGoogleSignIn(modal) {
     try {
-      const isProduction = window.location.hostname !== 'localhost' && 
-                          window.location.hostname !== '127.0.0.1';
+      const isProduction =
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1";
 
       // Mostrar loading apropiado según el entorno
       const loadingDiv = document.createElement("div");
-      const loadingText = isProduction 
-        ? "🚀 Redirigiendo a Google..." 
+      const loadingText = isProduction
+        ? "🚀 Redirigiendo a Google..."
         : "⏳ Conectando con Google...";
-      
+
       loadingDiv.textContent = loadingText;
       loadingDiv.style.cssText = `
         position: absolute;
@@ -552,10 +553,11 @@ class Game {
         if (isProduction) {
           // En producción, el redirect manejará el cierre del modal
           console.log("🔥 Game: Redirect iniciado - esperando resultado...");
-          
+
           // Mostrar mensaje temporal
           const redirectMsg = document.createElement("div");
-          redirectMsg.textContent = "Si no se redirige automáticamente, recarga la página";
+          redirectMsg.textContent =
+            "Si no se redirige automáticamente, recarga la página";
           redirectMsg.style.cssText = `
             position: absolute;
             top: 50%;
@@ -569,7 +571,7 @@ class Game {
             text-align: center;
           `;
           modal.appendChild(redirectMsg);
-          
+
           // Auto-remover después de 5 segundos
           setTimeout(() => {
             if (redirectMsg && redirectMsg.parentNode) {
@@ -582,19 +584,25 @@ class Game {
         }
       } else {
         console.log("🔥 Game: ❌ Error en proceso");
-        this.showErrorMessage(modal, "Error inesperado en el proceso de registro");
+        this.showErrorMessage(
+          modal,
+          "Error inesperado en el proceso de registro"
+        );
       }
     } catch (error) {
       console.error("🔥 Game: Error en handleGoogleSignIn:", error);
 
       // Remover loading si aún está presente
-      const loadingDiv = modal.querySelector('div');
+      const loadingDiv = modal.querySelector("div");
       if (loadingDiv && loadingDiv.parentNode) {
         loadingDiv.parentNode.removeChild(loadingDiv);
       }
 
       // Mostrar mensaje de error específico
-      this.showErrorMessage(modal, error.message || "Error en el proceso de registro");
+      this.showErrorMessage(
+        modal,
+        error.message || "Error en el proceso de registro"
+      );
     }
   }
 

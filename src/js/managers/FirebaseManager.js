@@ -189,39 +189,48 @@ class FirebaseManager {
   async handleRedirectResult() {
     try {
       const result = await this.auth.getRedirectResult();
-      
+
       if (result && result.user) {
-        console.log("🔥 FirebaseManager: ✅ Redirect exitoso:", result.user.email || 'Usuario sin email');
-        
+        console.log(
+          "🔥 FirebaseManager: ✅ Redirect exitoso:",
+          result.user.email || "Usuario sin email"
+        );
+
         // Limpiar flags de upgrade pendiente
-        sessionStorage.removeItem('firebase_upgrade_pending');
-        sessionStorage.removeItem('firebase_anonymous_uid');
-        
+        sessionStorage.removeItem("firebase_upgrade_pending");
+        sessionStorage.removeItem("firebase_anonymous_uid");
+
         // Verificar si era un upgrade de usuario anónimo
-        const wasUpgrade = sessionStorage.getItem('firebase_upgrade_pending') === 'true';
+        const wasUpgrade =
+          sessionStorage.getItem("firebase_upgrade_pending") === "true";
         if (wasUpgrade) {
-          console.log("🔥 FirebaseManager: ✅ Upgrade de anónimo a permanente completado");
+          console.log(
+            "🔥 FirebaseManager: ✅ Upgrade de anónimo a permanente completado"
+          );
         }
-        
+
         return true;
       }
-      
+
       // Verificar si había un upgrade pendiente que no se completó
-      const upgradePending = sessionStorage.getItem('firebase_upgrade_pending');
+      const upgradePending = sessionStorage.getItem("firebase_upgrade_pending");
       if (upgradePending) {
         console.log("🔥 FirebaseManager: ⚠️ Upgrade pendiente no completado");
-        sessionStorage.removeItem('firebase_upgrade_pending');
-        sessionStorage.removeItem('firebase_anonymous_uid');
+        sessionStorage.removeItem("firebase_upgrade_pending");
+        sessionStorage.removeItem("firebase_anonymous_uid");
       }
-      
+
       return false;
     } catch (error) {
-      console.warn("🔥 FirebaseManager: Error manejando redirect result:", error);
-      
+      console.warn(
+        "🔥 FirebaseManager: Error manejando redirect result:",
+        error
+      );
+
       // Limpiar flags en caso de error
-      sessionStorage.removeItem('firebase_upgrade_pending');
-      sessionStorage.removeItem('firebase_anonymous_uid');
-      
+      sessionStorage.removeItem("firebase_upgrade_pending");
+      sessionStorage.removeItem("firebase_anonymous_uid");
+
       return false;
     }
   }
@@ -333,21 +342,29 @@ class FirebaseManager {
       provider.addScope("profile");
 
       // NUEVA ESTRATEGIA: Detectar entorno de producción vs desarrollo
-      const isProduction = window.location.hostname !== 'localhost' && 
-                          window.location.hostname !== '127.0.0.1';
+      const isProduction =
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1";
 
       if (this.isUserAnonymous() && this.auth.currentUser) {
         try {
-          console.log("🔥 FirebaseManager: Intentando upgrade de usuario anónimo...");
-          
+          console.log(
+            "🔥 FirebaseManager: Intentando upgrade de usuario anónimo..."
+          );
+
           if (isProduction) {
             // EN PRODUCCIÓN: Usar signInWithRedirect directamente para evitar CORS
-            console.log("🔥 FirebaseManager: Producción detectada - usando redirect...");
-            
+            console.log(
+              "🔥 FirebaseManager: Producción detectada - usando redirect..."
+            );
+
             // Guardar estado del usuario anónimo antes del redirect
-            sessionStorage.setItem('firebase_upgrade_pending', 'true');
-            sessionStorage.setItem('firebase_anonymous_uid', this.auth.currentUser.uid);
-            
+            sessionStorage.setItem("firebase_upgrade_pending", "true");
+            sessionStorage.setItem(
+              "firebase_anonymous_uid",
+              this.auth.currentUser.uid
+            );
+
             // Usar redirect en producción (más confiable)
             await this.auth.currentUser.linkWithRedirect(provider);
             return true; // El resultado se manejará después del redirect
@@ -359,27 +376,32 @@ class FirebaseManager {
             return true;
           }
         } catch (linkError) {
-          console.log("🔥 FirebaseManager: Error en link, intentando manejo inteligente:", linkError.code);
-          
+          console.log(
+            "🔥 FirebaseManager: Error en link, intentando manejo inteligente:",
+            linkError.code
+          );
+
           // Si el error es que la cuenta ya existe, hacer login directo
-          if (linkError.code === 'auth/credential-already-in-use') {
+          if (linkError.code === "auth/credential-already-in-use") {
             return await this.handleExistingAccountLogin(provider);
           }
-          
+
           // Para otros errores en producción, usar redirect
           if (isProduction) {
-            console.log("🔥 FirebaseManager: Fallback a redirect en producción...");
+            console.log(
+              "🔥 FirebaseManager: Fallback a redirect en producción..."
+            );
             await this.auth.signInWithRedirect(provider);
             return true;
           }
-          
+
           throw linkError;
         }
       }
 
       // Usuario no anónimo - hacer login directo
       console.log("🔥 FirebaseManager: Haciendo login directo...");
-      
+
       if (isProduction) {
         // En producción, usar redirect para login directo también
         await this.auth.signInWithRedirect(provider);
@@ -390,7 +412,6 @@ class FirebaseManager {
         console.log("🔥 FirebaseManager: ✅ Login directo exitoso");
         return true;
       }
-
     } catch (error) {
       console.error("🔥 FirebaseManager: ❌ Error en upgrade:", error);
       return await this.handleAuthError(error);
@@ -403,11 +424,14 @@ class FirebaseManager {
    */
   async handleExistingAccountLogin(provider) {
     try {
-      console.log("🔥 FirebaseManager: Cuenta existente detectada - haciendo login directo...");
-      
-      const isProduction = window.location.hostname !== 'localhost' && 
-                          window.location.hostname !== '127.0.0.1';
-      
+      console.log(
+        "🔥 FirebaseManager: Cuenta existente detectada - haciendo login directo..."
+      );
+
+      const isProduction =
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1";
+
       if (isProduction) {
         // En producción usar redirect
         await this.auth.signInWithRedirect(provider);
@@ -419,7 +443,10 @@ class FirebaseManager {
         return true;
       }
     } catch (error) {
-      console.error("🔥 FirebaseManager: Error en login de cuenta existente:", error);
+      console.error(
+        "🔥 FirebaseManager: Error en login de cuenta existente:",
+        error
+      );
       throw error;
     }
   }
@@ -432,14 +459,17 @@ class FirebaseManager {
   async handleAuthError(error) {
     console.log("🔥 FirebaseManager: Manejando error de auth:", error.code);
 
-    const isProduction = window.location.hostname !== 'localhost' && 
-                        window.location.hostname !== '127.0.0.1';
+    const isProduction =
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1";
 
     try {
       switch (error.code) {
         case "auth/credential-already-in-use":
           // La cuenta ya existe - hacer login directo
-          console.log("🔥 FirebaseManager: Detectada cuenta existente, haciendo login directo...");
+          console.log(
+            "🔥 FirebaseManager: Detectada cuenta existente, haciendo login directo..."
+          );
           const provider = new firebase.auth.GoogleAuthProvider();
           return await this.handleExistingAccountLogin(provider);
 
@@ -447,39 +477,54 @@ class FirebaseManager {
         case "auth/popup-closed-by-user":
         case "auth/cancelled-popup-request":
           if (isProduction) {
-            console.log("🔥 FirebaseManager: Error de popup en producción - usando redirect...");
+            console.log(
+              "🔥 FirebaseManager: Error de popup en producción - usando redirect..."
+            );
             const provider = new firebase.auth.GoogleAuthProvider();
             provider.addScope("email");
             provider.addScope("profile");
             await this.auth.signInWithRedirect(provider);
             return true;
           } else {
-            throw new Error("Por favor, permite los popups en tu navegador para completar el registro");
+            throw new Error(
+              "Por favor, permite los popups en tu navegador para completar el registro"
+            );
           }
 
         case "auth/network-request-failed":
-          throw new Error("Error de conexión. Verifica tu internet e inténtalo de nuevo");
+          throw new Error(
+            "Error de conexión. Verifica tu internet e inténtalo de nuevo"
+          );
 
         case "auth/too-many-requests":
-          throw new Error("Demasiados intentos. Espera un momento e inténtalo de nuevo");
+          throw new Error(
+            "Demasiados intentos. Espera un momento e inténtalo de nuevo"
+          );
 
         default:
           console.error("🔥 FirebaseManager: Error no manejado:", error.code);
-          
+
           if (isProduction) {
             // En producción, siempre ofrecer redirect como fallback
-            console.log("🔥 FirebaseManager: Fallback a redirect para error no manejado...");
+            console.log(
+              "🔥 FirebaseManager: Fallback a redirect para error no manejado..."
+            );
             const provider = new firebase.auth.GoogleAuthProvider();
             provider.addScope("email");
             provider.addScope("profile");
             await this.auth.signInWithRedirect(provider);
             return true;
           } else {
-            throw new Error("Error en el registro. Por favor, inténtalo de nuevo más tarde");
+            throw new Error(
+              "Error en el registro. Por favor, inténtalo de nuevo más tarde"
+            );
           }
       }
     } catch (handleError) {
-      console.error("🔥 FirebaseManager: Error en manejo de error:", handleError);
+      console.error(
+        "🔥 FirebaseManager: Error en manejo de error:",
+        handleError
+      );
       throw handleError;
     }
   }
