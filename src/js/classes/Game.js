@@ -49,6 +49,16 @@ class Game {
     this.lastPipeTime = 0;
     this.pipeInterval = config.PIPES.SPAWN_INTERVAL;
 
+    // Referencias a managers externos
+    this.firebaseManager = null;
+    this.audioManager = null;
+    this.storageManager = null;
+    this.assetManager = null;
+
+    // NUEVO: Estados para Game Over (evitar loop infinito)
+    this.gameOverStateChecked = false;
+    this.gameOverUserState = null; // 'permanent', 'anonymous', 'offline'
+
     // Sistema de audio
     this.audio = {
       jump: new Audio(config.ASSETS.AUDIO.JUMP),
@@ -67,6 +77,14 @@ class Game {
     // Efectos visuales
     this.screenShake = 0;
     this.backgroundOffset = 0;
+
+    // Control de logs para evitar spam
+    this.gameOverLogged = false;
+    this.gameOverStateLogged = false;
+    this.gameOverPromptLogged = false;
+    this.gameOverFallbackLogged = false;
+    this.registrationPromptLogged = false;
+    this.registrationPromptRenderedLogged = false;
 
     // Estadísticas
     this.stats = {
@@ -105,6 +123,44 @@ class Game {
     Object.values(this.audio).forEach((audio) => {
       audio.volume = this.config.AUDIO.DEFAULT_VOLUME;
       audio.preload = "auto";
+    });
+  }
+
+  /**
+   * Configura los managers externos
+   * @param {Object} managers - Objeto con todos los managers
+   */
+  setManagers(managers) {
+    console.log("🔗 Game: Configurando managers...");
+
+    this.firebaseManager = managers.firebase;
+    this.audioManager = managers.audio;
+    this.storageManager = managers.storage;
+    this.assetManager = managers.asset;
+
+    // NUEVO: Configurar callback para cambios de estado de autenticación
+    if (
+      this.firebaseManager &&
+      typeof this.firebaseManager.onAuthStateChanged === "function"
+    ) {
+      this.firebaseManager.onAuthStateChanged((authState, user) => {
+        console.log("🔗 Game: Estado de auth cambió:", authState);
+        console.log(
+          "🔗 Game: Usuario:",
+          user ? user.displayName || user.email || "anónimo" : "ninguno"
+        );
+
+        // Resetear flags de logging cuando cambia el estado de auth
+        this.gameOverStateLogged = false;
+        this.gameOverPromptLogged = false;
+      });
+    }
+
+    console.log("🔗 Game: Managers configurados:", {
+      firebase: !!this.firebaseManager,
+      audio: !!this.audioManager,
+      storage: !!this.storageManager,
+      asset: !!this.assetManager,
     });
   }
 
@@ -229,11 +285,535 @@ class Game {
         this.playSound("jump");
         break;
       case this.states.GAME_OVER:
+        console.log("🔥 Game: handleJumpInput in GAME_OVER state");
+        // ACTUALIZADO: Usar getUserInfo para detección precisa
+        if (this.firebaseManager && this.firebaseManager.isReady()) {
+          const userInfo = this.firebaseManager.getUserInfo();
+          console.log("🔥 Game: Firebase listo, verificando estado real...");
+          console.log("🔥 Game: Info de usuario:", userInfo);
+
+          if (userInfo && userInfo.isPermanent) {
+            // Usuario registrado permanentemente - mostrar leaderboard
+            console.log("🔥 Game: Usuario permanente - mostrando leaderboard");
+            this.showLeaderboard();
+            return; // IMPORTANTE: No continuar con restart
+          } else if (userInfo && userInfo.isAnonymous) {
+            // Usuario anónimo - mostrar modal de registro
+            console.log(
+              "🔥 Game: Usuario anónimo - mostrando modal de registro"
+            );
+            this.showRegistrationModal();
+            return; // IMPORTANTE: No continuar con restart
+          }
+        }
+
+        // Fallback - reiniciar juego si no hay Firebase o hay error
+        console.log(
+          "🔥 Game: Firebase no disponible o error, reiniciando juego"
+        );
         this.restart();
         break;
       case this.states.PAUSED:
         this.resume();
         break;
+    }
+  }
+
+  /**
+   * Muestra el modal de registro para usuarios anónimos
+   */
+  async showRegistrationModal() {
+    try {
+      console.log("🔥 Game: Iniciando proceso de registro...");
+
+      // Crear modal DOM para registro
+      const modal = this.createRegistrationModal();
+      document.body.appendChild(modal);
+
+      // Pausar el juego mientras se muestra el modal
+      this.previousGameState = this.currentState;
+    } catch (error) {
+      console.error("🔥 Game: Error mostrando modal de registro:", error);
+      // Fallback - reiniciar juego si hay error
+      this.restart();
+    }
+  }
+
+  /**
+   * Muestra el leaderboard para usuarios registrados
+   */
+  async showLeaderboard() {
+    try {
+      console.log("🔥 Game: Mostrando leaderboard...");
+
+      // TODO: Implementar en Etapa 5
+      // Por ahora, solo reiniciar el juego
+      console.log("🔥 Game: Leaderboard no implementado aún, reiniciando...");
+      this.restart();
+    } catch (error) {
+      console.error("🔥 Game: Error mostrando leaderboard:", error);
+      this.restart();
+    }
+  }
+
+  /**
+   * Crea el modal DOM para registro de usuario
+   * @returns {HTMLElement} - Elemento modal
+   */
+  createRegistrationModal() {
+    // Crear overlay del modal
+    const modalOverlay = document.createElement("div");
+    modalOverlay.id = "registration-modal-overlay";
+    modalOverlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      font-family: Arial, sans-serif;
+    `;
+
+    // Crear contenedor del modal
+    const modalContent = document.createElement("div");
+    modalContent.style.cssText = `
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 15px;
+      padding: 30px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      max-width: 400px;
+      min-width: 320px;
+      border: 3px solid #FFD700;
+      animation: modalSlideIn 0.3s ease-out;
+    `;
+
+    // Agregar animación CSS
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes modalSlideIn {
+        from { transform: translateY(-50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Título
+    const title = document.createElement("h2");
+    title.textContent = "🏆 ¡Regístrate y Compite!";
+    title.style.cssText = `
+      color: #FFD700;
+      margin-bottom: 15px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      font-size: 24px;
+    `;
+
+    // Descripción
+    const description = document.createElement("p");
+    description.textContent =
+      "Guarda tu puntuación y compite en el ranking global";
+    description.style.cssText = `
+      color: white;
+      margin-bottom: 25px;
+      font-size: 16px;
+    `;
+
+    // Botón de Google
+    const googleBtn = document.createElement("button");
+    googleBtn.innerHTML = "🚀 Registrarse con Google";
+    googleBtn.style.cssText = `
+      background: #4285F4;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 10px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    `;
+
+    googleBtn.onmouseover = () => {
+      googleBtn.style.background = "#3367D6";
+      googleBtn.style.transform = "translateY(-2px)";
+    };
+
+    googleBtn.onmouseout = () => {
+      googleBtn.style.background = "#4285F4";
+      googleBtn.style.transform = "translateY(0)";
+    };
+
+    // Botón cancelar
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Ahora No";
+    cancelBtn.style.cssText = `
+      background: transparent;
+      color: #FFD700;
+      border: 2px solid #FFD700;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 10px;
+      transition: all 0.3s ease;
+    `;
+
+    cancelBtn.onmouseover = () => {
+      cancelBtn.style.background = "#FFD700";
+      cancelBtn.style.color = "#333";
+    };
+
+    cancelBtn.onmouseout = () => {
+      cancelBtn.style.background = "transparent";
+      cancelBtn.style.color = "#FFD700";
+    };
+
+    // Event listeners
+    googleBtn.onclick = () => this.handleGoogleSignIn(modalOverlay);
+    cancelBtn.onclick = () => this.closeModal(modalOverlay);
+
+    // Cerrar al hacer click fuera del modal
+    modalOverlay.onclick = (e) => {
+      if (e.target === modalOverlay) {
+        this.closeModal(modalOverlay);
+      }
+    };
+
+    // Agregar elementos al modal
+    modalContent.appendChild(title);
+    modalContent.appendChild(description);
+    modalContent.appendChild(googleBtn);
+    modalContent.appendChild(cancelBtn);
+    modalOverlay.appendChild(modalContent);
+
+    return modalOverlay;
+  }
+
+  /**
+   * Maneja el proceso de registro con Google
+   * @param {HTMLElement} modal - Modal a cerrar
+   */
+  async handleGoogleSignIn(modal) {
+    try {
+      // Mostrar loading
+      const loadingDiv = document.createElement("div");
+      loadingDiv.textContent = "⏳ Conectando con Google...";
+      loadingDiv.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        font-size: 16px;
+      `;
+      modal.appendChild(loadingDiv);
+
+      console.log("🔥 Game: Iniciando autenticación con Google...");
+
+      // Llamar al FirebaseManager para hacer el upgrade con mejor manejo de errores
+      const success = await this.firebaseManager.upgradeAnonymousToGoogle();
+
+      // Remover loading
+      if (loadingDiv && loadingDiv.parentNode) {
+        loadingDiv.parentNode.removeChild(loadingDiv);
+      }
+
+      if (success) {
+        console.log("🔥 Game: ✅ Registro/Login exitoso");
+        this.showSuccessMessage(modal);
+      } else {
+        console.log("🔥 Game: ❌ Error en proceso");
+        this.showErrorMessage(
+          modal,
+          "Error inesperado en el proceso de registro"
+        );
+      }
+    } catch (error) {
+      console.error("🔥 Game: Error en handleGoogleSignIn:", error);
+
+      // Remover loading si aún está presente
+      const loadingDiv = modal.querySelector(
+        'div[textContent="⏳ Conectando con Google..."]'
+      );
+      if (loadingDiv && loadingDiv.parentNode) {
+        loadingDiv.parentNode.removeChild(loadingDiv);
+      }
+
+      // Mostrar mensaje de error específico
+      this.showErrorMessage(
+        modal,
+        error.message || "Error en el proceso de registro"
+      );
+    }
+  }
+
+  /**
+   * Muestra mensaje de éxito y cierra modal
+   * @param {HTMLElement} modal - Modal a cerrar
+   */
+  showSuccessMessage(modal) {
+    // Limpiar el modal
+    const modalContent = modal.querySelector("div");
+    modalContent.innerHTML = "";
+
+    // Crear mensaje de éxito elegante
+    modalContent.style.cssText = `
+      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+      border-radius: 15px;
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      max-width: 400px;
+      min-width: 320px;
+      border: 3px solid #FFD700;
+      animation: successPulse 0.6s ease-out;
+    `;
+
+    // Agregar animación CSS
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes successPulse {
+        0% { transform: scale(0.8); opacity: 0; }
+        50% { transform: scale(1.05); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Contenido del mensaje de éxito
+    modalContent.innerHTML = `
+      <div style="font-size: 48px; margin-bottom: 20px;">🎉</div>
+      <h2 style="color: #FFD700; margin-bottom: 15px; font-size: 24px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
+        ¡Registro Exitoso!
+      </h2>
+      <p style="color: white; margin-bottom: 20px; font-size: 16px;">
+        Tu cuenta de Google ha sido vinculada correctamente.<br>
+        ¡Tus puntuaciones se guardarán automáticamente!
+      </p>
+      <div style="font-size: 32px; margin-bottom: 20px;">🏆</div>
+      <button id="success-continue-btn" style="
+        background: #FFD700;
+        color: #333;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      ">Continuar Jugando</button>
+    `;
+
+    // Event listener para el botón
+    const continueBtn = modal.querySelector("#success-continue-btn");
+    continueBtn.addEventListener("mouseover", () => {
+      continueBtn.style.background = "#FFC107";
+      continueBtn.style.transform = "translateY(-2px)";
+    });
+    continueBtn.addEventListener("mouseout", () => {
+      continueBtn.style.background = "#FFD700";
+      continueBtn.style.transform = "translateY(0)";
+    });
+    continueBtn.addEventListener("click", () => {
+      this.closeModal(modal);
+    });
+
+    // Auto-cerrar después de 5 segundos
+    setTimeout(() => {
+      if (modal && modal.parentNode) {
+        this.closeModal(modal);
+      }
+    }, 5000);
+  }
+
+  /**
+   * Muestra mensaje de error
+   * @param {HTMLElement} modal - Modal a cerrar
+   * @param {string} customMessage - Mensaje personalizado de error (opcional)
+   */
+  showErrorMessage(modal, customMessage = null) {
+    // Limpiar el modal
+    const modalContent = modal.querySelector("div");
+    modalContent.innerHTML = "";
+
+    // Definir mensaje según el contexto
+    let errorTitle = "Error en el Registro";
+    let errorMessage =
+      "No se pudo completar el registro con Google.<br>Por favor, inténtalo de nuevo más tarde.";
+
+    if (customMessage) {
+      if (
+        customMessage.includes("already associated") ||
+        customMessage.includes("credential-already-in-use")
+      ) {
+        errorTitle = "Cuenta Ya Registrada";
+        errorMessage =
+          "Esta cuenta de Google ya está en uso.<br>Serás conectado automáticamente.";
+      } else if (
+        customMessage.includes("popup") ||
+        customMessage.includes("cancelled")
+      ) {
+        errorTitle = "Proceso Cancelado";
+        errorMessage =
+          "El proceso de registro fue cancelado.<br>Puedes intentarlo de nuevo cuando gustes.";
+      } else if (customMessage.includes("blocked")) {
+        errorTitle = "Popup Bloqueado";
+        errorMessage =
+          "Tu navegador bloqueó la ventana de Google.<br>Permite popups para este sitio e intenta de nuevo.";
+      } else {
+        errorMessage =
+          customMessage + "<br>Intenta nuevamente en unos momentos.";
+      }
+    }
+
+    // Crear mensaje de error elegante
+    modalContent.style.cssText = `
+      background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+      border-radius: 15px;
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      max-width: 400px;
+      min-width: 320px;
+      border: 3px solid #FF5722;
+      animation: errorShake 0.6s ease-out;
+    `;
+
+    // Agregar animación CSS
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes errorShake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+        20%, 40%, 60%, 80% { transform: translateX(5px); }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Contenido del mensaje de error
+    modalContent.innerHTML = `
+      <div style="font-size: 48px; margin-bottom: 20px;">😞</div>
+      <h2 style="color: #FFD700; margin-bottom: 15px; font-size: 24px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
+        ${errorTitle}
+      </h2>
+      <p style="color: white; margin-bottom: 20px; font-size: 16px;">
+        ${errorMessage}
+      </p>
+      <div style="font-size: 32px; margin-bottom: 20px;">🔄</div>
+      <button id="error-retry-btn" style="
+        background: #FF9800;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-right: 10px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      ">Reintentar</button>
+      <button id="error-continue-btn" style="
+        background: transparent;
+        color: #FFD700;
+        border: 2px solid #FFD700;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      ">Continuar sin Registro</button>
+    `;
+
+    // Event listeners para los botones
+    const retryBtn = modal.querySelector("#error-retry-btn");
+    const continueBtn = modal.querySelector("#error-continue-btn");
+
+    retryBtn.addEventListener("mouseover", () => {
+      retryBtn.style.background = "#F57C00";
+      retryBtn.style.transform = "translateY(-2px)";
+    });
+    retryBtn.addEventListener("mouseout", () => {
+      retryBtn.style.background = "#FF9800";
+      retryBtn.style.transform = "translateY(0)";
+    });
+    retryBtn.addEventListener("click", () => {
+      // Reiniciar el proceso de registro
+      this.closeModal(modal);
+      setTimeout(() => this.showRegistrationModal(), 500);
+    });
+
+    continueBtn.addEventListener("mouseover", () => {
+      continueBtn.style.background = "#FFD700";
+      continueBtn.style.color = "#333";
+    });
+    continueBtn.addEventListener("mouseout", () => {
+      continueBtn.style.background = "transparent";
+      continueBtn.style.color = "#FFD700";
+    });
+    continueBtn.addEventListener("click", () => {
+      this.closeModal(modal);
+    });
+
+    // Auto-cerrar después de 8 segundos
+    setTimeout(() => {
+      if (modal && modal.parentNode) {
+        this.closeModal(modal);
+      }
+    }, 8000);
+  }
+
+  /**
+   * Cierra el modal y continúa el juego
+   * @param {HTMLElement} modal - Modal a cerrar
+   */
+  closeModal(modal) {
+    if (modal && modal.parentNode) {
+      modal.remove();
+    }
+    // Reiniciar el juego después de cerrar el modal
+    this.restart();
+  }
+
+  /**
+   * Verifica el estado del usuario UNA SOLA VEZ al entrar a Game Over
+   */
+  checkUserStateForGameOver() {
+    console.log("🔥 Game: Verificando estado de usuario para Game Over...");
+
+    if (!this.firebaseManager || !this.firebaseManager.isReady()) {
+      console.log("🔥 Game: Firebase no disponible");
+      this.gameOverUserState = "offline";
+      return;
+    }
+
+    try {
+      const userInfo = this.firebaseManager.getUserInfo();
+      console.log("🔥 Game: Estado de usuario detectado:", userInfo);
+
+      if (userInfo && userInfo.isPermanent) {
+        console.log("🔥 Game: Usuario permanente - mostrando leaderboard");
+        this.gameOverUserState = "permanent";
+      } else if (userInfo && userInfo.isAnonymous) {
+        console.log("🔥 Game: Usuario anónimo - mostrando registro");
+        this.gameOverUserState = "anonymous";
+      } else {
+        console.log("🔥 Game: Estado desconocido - fallback");
+        this.gameOverUserState = "offline";
+      }
+    } catch (error) {
+      console.error("🔥 Game: Error verificando estado:", error);
+      this.gameOverUserState = "offline";
     }
   }
 
@@ -245,6 +825,22 @@ class Game {
 
     this.previousState = this.currentState;
     this.currentState = newState;
+
+    // CRÍTICO: Resetear estados de game over
+    if (newState === this.states.GAME_OVER) {
+      this.gameOverStateChecked = false;
+      this.gameOverUserState = null;
+    }
+
+    // Resetear flags de logging solo en cambios de estado
+    if (newState !== this.states.GAME_OVER) {
+      this.gameOverLogged = false;
+      this.gameOverStateLogged = false;
+      this.gameOverPromptLogged = false;
+      this.gameOverFallbackLogged = false;
+      this.registrationPromptLogged = false;
+      this.registrationPromptRenderedLogged = false;
+    }
 
     console.log(`State changed: ${this.previousState} -> ${this.currentState}`);
 
@@ -765,56 +1361,187 @@ class Game {
   }
 
   /**
-   * Renderiza pantalla de game over
+   * Renderiza pantalla de game over (SIN LOOP INFINITO)
    */
   renderGameOverScreen(ctx) {
-    // Game Over principal
+    // Overlay semi-transparente
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Configurar estilo de texto
     ctx.textAlign = "center";
     ctx.font = "bold 48px Arial";
-    ctx.fillStyle = "#FF6347";
+    ctx.fillStyle = "white";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 3;
 
-    const gameOverY = this.canvas.height / 2 - 60;
-    ctx.strokeText("GAME OVER", this.canvas.width / 2, gameOverY);
-    ctx.fillText("GAME OVER", this.canvas.width / 2, gameOverY);
+    // Título Game Over
+    const titleY = this.canvas.height / 3;
+    ctx.strokeText("GAME OVER", this.canvas.width / 2, titleY);
+    ctx.fillText("GAME OVER", this.canvas.width / 2, titleY);
 
     // Puntuación final
     ctx.font = "bold 24px Arial";
-    ctx.fillStyle = "white";
-    const scoreY = gameOverY + 50;
+    const scoreY = titleY + 60;
 
     if (this.isNewRecord) {
       ctx.fillStyle = "#FFD700";
       ctx.strokeText(
-        `NEW RECORD: ${this.score}!`,
+        "🎉 ¡NUEVO RECORD! 🎉",
         this.canvas.width / 2,
-        scoreY
+        scoreY - 30
       );
-      ctx.fillText(`NEW RECORD: ${this.score}!`, this.canvas.width / 2, scoreY);
-    } else {
-      ctx.strokeText(
-        `Final Score: ${this.score}`,
-        this.canvas.width / 2,
-        scoreY
-      );
-      ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, scoreY);
+      ctx.fillText("🎉 ¡NUEVO RECORD! 🎉", this.canvas.width / 2, scoreY - 30);
     }
 
-    // Instrucciones
-    ctx.font = "bold 18px Arial";
     ctx.fillStyle = "white";
-    const instructY = scoreY + 40;
     ctx.strokeText(
-      "Click or Press SPACE to Restart",
+      `Puntuación Final: ${this.score}`,
       this.canvas.width / 2,
-      instructY
+      scoreY
     );
     ctx.fillText(
-      "Click or Press SPACE to Restart",
+      `Puntuación Final: ${this.score}`,
+      this.canvas.width / 2,
+      scoreY
+    );
+
+    // CORREGIDO: Verificar Firebase solo UNA VEZ por game over
+    let instructY = scoreY + 60;
+
+    // CRÍTICO: Solo verificar estado una vez cuando entra a game over
+    if (!this.gameOverStateChecked) {
+      this.gameOverStateChecked = true;
+      this.checkUserStateForGameOver();
+    }
+
+    // Renderizar UI según estado detectado (SIN verificar Firebase cada frame)
+    if (this.gameOverUserState === "permanent") {
+      this.renderLeaderboardPrompt(ctx, instructY);
+      instructY += 100;
+    } else if (this.gameOverUserState === "anonymous") {
+      this.renderRegistrationPrompt(ctx, instructY);
+      instructY += 100;
+    }
+
+    // Instrucciones básicas
+    ctx.font = "bold 16px Arial";
+    ctx.fillStyle = "white";
+    ctx.strokeText(
+      "Presiona R para Reiniciar",
       this.canvas.width / 2,
       instructY
     );
+    ctx.fillText("Presiona R para Reiniciar", this.canvas.width / 2, instructY);
 
-    ctx.textAlign = "left";
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza el prompt de registro para usuarios anónimos
+   * @param {CanvasRenderingContext2D} ctx - Contexto del canvas
+   * @param {number} startY - Posición Y inicial
+   */
+  renderRegistrationPrompt(ctx, startY) {
+    // Solo log una vez por sesión
+    if (!this.registrationPromptLogged) {
+      console.log("🔥 Game: Rendering registration prompt at Y:", startY);
+      this.registrationPromptLogged = true;
+    }
+
+    // Fondo del prompt con mejor dimensionado
+    ctx.fillStyle = "rgba(255, 165, 0, 0.4)";
+    ctx.strokeStyle = "#FFA500";
+    ctx.lineWidth = 3;
+    const promptWidth = 400;
+    const promptHeight = 90;
+    const promptX = (this.canvas.width - promptWidth) / 2;
+    const promptY = startY - 20;
+
+    ctx.fillRect(promptX, promptY, promptWidth, promptHeight);
+    ctx.strokeRect(promptX, promptY, promptWidth, promptHeight);
+
+    // Texto del prompt - Ajustado al tamaño del cuadro
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#FFD700";
+    ctx.font = "bold 16px Arial";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
+
+    // Texto principal dividido en dos líneas para que quepa
+    ctx.strokeText(
+      "🏆 ¡Regístrate para guardar",
+      this.canvas.width / 2,
+      startY + 8
+    );
+    ctx.fillText(
+      "🏆 ¡Regístrate para guardar",
+      this.canvas.width / 2,
+      startY + 8
+    );
+
+    ctx.strokeText("tu puntuación!", this.canvas.width / 2, startY + 26);
+    ctx.fillText("tu puntuación!", this.canvas.width / 2, startY + 26);
+
+    // Instrucción de acción - Más pequeña y dentro del cuadro
+    ctx.fillStyle = "white";
+    ctx.font = "bold 14px Arial";
+    ctx.lineWidth = 1;
+    ctx.strokeText(
+      "Presiona SPACE para registrarte",
+      this.canvas.width / 2,
+      startY + 48
+    );
+    ctx.fillText(
+      "Presiona SPACE para registrarte",
+      this.canvas.width / 2,
+      startY + 48
+    );
+
+    if (!this.registrationPromptRenderedLogged) {
+      console.log("🔥 Game: Registration prompt rendered successfully");
+      this.registrationPromptRenderedLogged = true;
+    }
+  }
+  /**
+   * Renderiza el prompt de leaderboard para usuarios registrados
+   * @param {CanvasRenderingContext2D} ctx - Contexto del canvas
+   * @param {number} startY - Posición Y inicial
+   */
+  renderLeaderboardPrompt(ctx, startY) {
+    // Fondo del prompt
+    ctx.fillStyle = "rgba(0, 191, 255, 0.2)";
+    ctx.strokeStyle = "#00BFFF";
+    ctx.lineWidth = 2;
+    const promptWidth = 260;
+    const promptHeight = 45;
+    const promptX = (this.canvas.width - promptWidth) / 2;
+    const promptY = startY - 5;
+
+    ctx.fillRect(promptX, promptY, promptWidth, promptHeight);
+    ctx.strokeRect(promptX, promptY, promptWidth, promptHeight);
+
+    // Texto del prompt
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#87CEEB";
+    ctx.font = "bold 16px Arial";
+    ctx.strokeText("🥇 Ver Ranking Global", this.canvas.width / 2, startY + 15);
+    ctx.fillText("🥇 Ver Ranking Global", this.canvas.width / 2, startY + 15);
+
+    // Instrucción de acción
+    ctx.fillStyle = "white";
+    ctx.font = "14px Arial";
+    ctx.strokeText(
+      "Presiona SPACE para ver leaderboard",
+      this.canvas.width / 2,
+      startY + 30
+    );
+    ctx.fillText(
+      "Presiona SPACE para ver leaderboard",
+      this.canvas.width / 2,
+      startY + 30
+    );
   }
 
   /**

@@ -20,6 +20,7 @@ class FirebaseManager {
     // Configuración
     this.config = null;
     this.retryAttempts = 3;
+    this.debugMode = false; // Para controlar logs excesivos
 
     // Estados de autenticación
     this.authStates = {
@@ -47,6 +48,16 @@ class FirebaseManager {
     try {
       console.log("🔥 FirebaseManager: Iniciando configuración...");
 
+      // OPCIONAL: Detectar si estamos en localhost y mostrar aviso
+      if (
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1"
+      ) {
+        console.warn(
+          "🔥 Firebase: Ejecutando en localhost - algunos features pueden tener limitaciones CORS"
+        );
+      }
+
       if (!firebaseConfig) {
         throw new Error("Configuración de Firebase no proporcionada");
       }
@@ -68,11 +79,14 @@ class FirebaseManager {
       // Configurar Firestore para offline
       this.db.enableNetwork();
 
+      // NUEVO: Manejar resultados de redirect ANTES de configurar listeners
+      await this.handleRedirectResult();
+
       // Configurar listeners de estado
       this.setupAuthStateListener();
       this.setupConnectionListener();
 
-      // Inicializar usuario anónimo automáticamente
+      // Inicializar usuario anónimo automáticamente (solo si no hay usuario)
       await this.initializeAnonymousUser();
 
       this.isInitialized = true;
@@ -87,16 +101,43 @@ class FirebaseManager {
   }
 
   /**
-   * Configurar listener de cambios de autenticación
+   * Configurar listener de cambios de autenticación (MEJORADO)
    * @private
    */
   setupAuthStateListener() {
     if (!this.auth) return;
 
+    // CRÍTICO: Configurar persistencia ANTES de cualquier operación
+    this.auth
+      .setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+      .then(() => {
+        console.log(
+          "🔥 FirebaseManager: Persistencia configurada correctamente"
+        );
+
+        // IMPORTANTE: Verificar si ya hay un usuario persistente ANTES de crear anónimo
+        if (this.auth.currentUser && !this.auth.currentUser.isAnonymous) {
+          console.log(
+            "🔥 FirebaseManager: Usuario persistente detectado en inicio"
+          );
+          return; // No crear usuario anónimo
+        }
+      })
+      .catch((error) => {
+        console.warn(
+          "🔥 FirebaseManager: Error configurando persistencia:",
+          error
+        );
+      });
+
     this.auth.onAuthStateChanged((user) => {
       console.log(
         "🔥 FirebaseManager: Estado de auth cambió:",
-        user ? "autenticado" : "no autenticado"
+        user
+          ? `${
+              user.isAnonymous ? "anónimo" : "registrado"
+            } (${user.uid.substring(0, 8)}...)`
+          : "no autenticado"
       );
 
       this.currentUser = user;
@@ -109,7 +150,7 @@ class FirebaseManager {
           this.currentAuthState = this.authStates.AUTHENTICATED;
           console.log(
             "🔥 FirebaseManager: Usuario registrado activo:",
-            user.displayName || user.email
+            user.displayName || user.email || "Sin nombre"
           );
         }
       } else {
@@ -142,21 +183,75 @@ class FirebaseManager {
   }
 
   /**
-   * Inicializar usuario anónimo automáticamente
+   * Maneja resultados de redirect después de Google Auth
+   * @private
+   */
+  async handleRedirectResult() {
+    try {
+      const result = await this.auth.getRedirectResult();
+
+      if (result && result.user) {
+        console.log(
+          "🔥 FirebaseManager: ✅ Redirect exitoso:",
+          result.user.email
+        );
+
+        // Limpiar flags de upgrade pendiente
+        sessionStorage.removeItem("firebase_upgrade_pending");
+        sessionStorage.removeItem("firebase_anonymous_uid");
+
+        return true;
+      }
+
+      // Verificar si había un upgrade pendiente que falló
+      const upgradePending = sessionStorage.getItem("firebase_upgrade_pending");
+      if (upgradePending) {
+        console.log("🔥 FirebaseManager: Upgrade pendiente no completado");
+        sessionStorage.removeItem("firebase_upgrade_pending");
+        sessionStorage.removeItem("firebase_anonymous_uid");
+      }
+
+      return false;
+    } catch (error) {
+      console.warn(
+        "🔥 FirebaseManager: Error manejando redirect result:",
+        error
+      );
+
+      // Limpiar flags en caso de error
+      sessionStorage.removeItem("firebase_upgrade_pending");
+      sessionStorage.removeItem("firebase_anonymous_uid");
+
+      return false;
+    }
+  }
+
+  /**
+   * Inicializar usuario anónimo automáticamente (MEJORADO)
    * @private
    */
   async initializeAnonymousUser() {
     try {
-      if (!this.auth.currentUser) {
-        console.log("🔥 FirebaseManager: Creando usuario anónimo...");
-        const result = await this.auth.signInAnonymously();
+      // IMPORTANTE: Solo crear anónimo si NO hay usuario actual
+      if (this.auth.currentUser) {
         console.log(
-          "🔥 FirebaseManager: ✅ Usuario anónimo creado:",
-          result.user.uid
+          "🔥 FirebaseManager: Usuario ya existe, no creando anónimo"
         );
-        return result.user;
+        console.log("🔥 FirebaseManager: Usuario actual:", {
+          uid: this.auth.currentUser.uid.substring(0, 8) + "...",
+          isAnonymous: this.auth.currentUser.isAnonymous,
+          email: this.auth.currentUser.email,
+        });
+        return this.auth.currentUser;
       }
-      return this.auth.currentUser;
+
+      console.log("🔥 FirebaseManager: No hay usuario, creando anónimo...");
+      const result = await this.auth.signInAnonymously();
+      console.log(
+        "🔥 FirebaseManager: ✅ Usuario anónimo creado:",
+        result.user.uid.substring(0, 8) + "..."
+      );
+      return result.user;
     } catch (error) {
       console.warn(
         "🔥 FirebaseManager: ⚠️ Error creando usuario anónimo:",
@@ -216,6 +311,215 @@ class FirebaseManager {
     return this.currentUser ? this.currentUser.uid : null;
   }
 
+  /**
+   * Convierte usuario anónimo a cuenta permanente con Google (CORREGIDO CORS)
+   * @returns {Promise<boolean>} - true si fue exitoso
+   */
+  async upgradeAnonymousToGoogle() {
+    try {
+      // Verificar si ya está registrado permanentemente
+      if (this.isUserPermanentlyRegistered()) {
+        console.log(
+          "🔥 FirebaseManager: Usuario ya registrado permanentemente"
+        );
+        return true;
+      }
+
+      console.log("🔥 FirebaseManager: Iniciando upgrade a Google...");
+
+      // Crear proveedor de Google
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope("email");
+      provider.addScope("profile");
+
+      // SOLUCIÓN CORS: Usar signInWithRedirect en lugar de linkWithPopup
+      if (this.isUserAnonymous() && this.auth.currentUser) {
+        try {
+          // Intentar linkWithPopup primero (funciona en algunos navegadores)
+          console.log("🔥 FirebaseManager: Intentando link con popup...");
+          const result = await this.auth.currentUser.linkWithPopup(provider);
+          console.log("🔥 FirebaseManager: ✅ Link con popup exitoso");
+          return true;
+        } catch (popupError) {
+          if (
+            popupError.code === "auth/popup-blocked" ||
+            popupError.code === "auth/popup-closed-by-user" ||
+            popupError.message.includes("popup") ||
+            popupError.message.includes("Cross-Origin-Opener-Policy")
+          ) {
+            console.log("🔥 FirebaseManager: Popup falló, usando redirect...");
+
+            // Guardar estado antes del redirect
+            sessionStorage.setItem("firebase_upgrade_pending", "true");
+            sessionStorage.setItem(
+              "firebase_anonymous_uid",
+              this.auth.currentUser.uid
+            );
+
+            // Usar redirect como fallback
+            await this.auth.currentUser.linkWithRedirect(provider);
+            return true; // El resultado se manejará después del redirect
+          }
+
+          // Si es otro error, usar el manejo normal
+          throw popupError;
+        }
+      }
+
+      // Fallback para usuarios no anónimos
+      console.log("🔥 FirebaseManager: Haciendo login directo...");
+      const result = await this.auth.signInWithPopup(provider);
+      console.log("🔥 FirebaseManager: ✅ Login directo exitoso");
+      return true;
+    } catch (error) {
+      console.error("🔥 FirebaseManager: ❌ Error en upgrade:", error);
+      return await this.handleAuthError(error);
+    }
+  }
+
+  /**
+   * Maneja errores de autenticación de manera inteligente
+   * @param {Error} error - Error de Firebase Auth
+   * @returns {Promise<boolean>}
+   */
+  async handleAuthError(error) {
+    console.log("🔥 FirebaseManager: Manejando error de auth:", error.code);
+
+    try {
+      switch (error.code) {
+        case "auth/credential-already-in-use":
+          // El usuario ya tiene cuenta - hacer sign in directo
+          console.log(
+            "🔥 FirebaseManager: Detectada cuenta existente, haciendo login directo..."
+          );
+          const provider = new firebase.auth.GoogleAuthProvider();
+          const result = await this.auth.signInWithPopup(provider);
+          console.log(
+            "🔥 FirebaseManager: ✅ Login directo exitoso:",
+            result.user.displayName
+          );
+          return true;
+
+        case "auth/popup-blocked":
+          console.error("🔥 FirebaseManager: Popup bloqueado por navegador");
+          throw new Error(
+            "Por favor, permite los popups en tu navegador para completar el registro"
+          );
+
+        case "auth/cancelled-popup-request":
+          console.error("🔥 FirebaseManager: Usuario canceló registro");
+          throw new Error("Registro cancelado por el usuario");
+
+        case "auth/popup-closed-by-user":
+          console.error("🔥 FirebaseManager: Usuario cerró popup");
+          throw new Error(
+            "Ventana de registro cerrada. Por favor, inténtalo de nuevo"
+          );
+
+        default:
+          console.error("🔥 FirebaseManager: Error no manejado:", error.code);
+          throw new Error(
+            "Error en el registro. Por favor, inténtalo de nuevo más tarde"
+          );
+      }
+    } catch (handleError) {
+      console.error(
+        "🔥 FirebaseManager: Error en manejo de error:",
+        handleError
+      );
+      throw handleError;
+    }
+  }
+
+  /**
+   * Crear cuenta nueva con Google (para uso futuro)
+   * @returns {Promise<boolean>}
+   */
+  async signInWithGoogle() {
+    try {
+      console.log("🔥 FirebaseManager: Iniciando login con Google...");
+
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope("email");
+      provider.addScope("profile");
+
+      const result = await this.auth.signInWithPopup(provider);
+
+      console.log(
+        "🔥 FirebaseManager: ✅ Login exitoso:",
+        result.user.displayName
+      );
+      return true;
+    } catch (error) {
+      console.error("🔥 FirebaseManager: ❌ Error en login:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Verificar si hay un usuario permanentemente registrado (OPTIMIZADO)
+   * @returns {boolean}
+   */
+  isUserPermanentlyRegistered() {
+    if (!this.currentUser) {
+      return false;
+    }
+
+    const isPermanent =
+      !this.currentUser.isAnonymous &&
+      this.currentUser.providerData &&
+      this.currentUser.providerData.length > 0;
+
+    // CORREGIDO: Solo log en debug mode para evitar spam
+    if (this.debugMode) {
+      console.log("🔥 FirebaseManager: Usuario permanente?", isPermanent);
+      console.log(
+        "🔥 FirebaseManager: isAnonymous:",
+        this.currentUser.isAnonymous
+      );
+      console.log(
+        "🔥 FirebaseManager: providerData length:",
+        this.currentUser.providerData?.length || 0
+      );
+    }
+
+    return isPermanent;
+  }
+
+  /**
+   * Obtener información completa del usuario (SIN LOGS EXCESIVOS)
+   * @returns {Object|null}
+   */
+  getUserInfo() {
+    if (!this.currentUser) {
+      return null;
+    }
+
+    const userInfo = {
+      uid: this.currentUser.uid,
+      isAnonymous: this.currentUser.isAnonymous,
+      displayName: this.currentUser.displayName,
+      email: this.currentUser.email,
+      photoURL: this.currentUser.photoURL,
+      providerData: this.currentUser.providerData,
+      isPermanent: this.isUserPermanentlyRegistered(),
+    };
+
+    // CORREGIDO: Solo log cuando se solicita explícitamente
+    if (this.debugMode) {
+      console.log("🔥 FirebaseManager: Info de usuario obtenida:", {
+        uid: userInfo.uid,
+        isAnonymous: userInfo.isAnonymous,
+        displayName: userInfo.displayName,
+        email: userInfo.email,
+        isPermanent: userInfo.isPermanent,
+        providers: userInfo.providerData?.map((p) => p.providerId) || [],
+      });
+    }
+
+    return userInfo;
+  }
+
   // =======================
   // MÉTODOS DE BASE DE DATOS
   // =======================
@@ -239,6 +543,106 @@ class FirebaseManager {
       return null;
     }
     return this.db.collection(collectionName);
+  }
+
+  /**
+   * Configurar nickname personalizado del usuario
+   * @param {string} nickname - Nickname elegido por el usuario
+   * @returns {Promise<boolean>}
+   */
+  async setUserNickname(nickname) {
+    try {
+      if (!this.isReady() || !this.currentUser) {
+        console.error("🔥 FirebaseManager: No listo para configurar nickname");
+        return false;
+      }
+
+      // Validar nickname
+      if (!nickname || typeof nickname !== "string") {
+        throw new Error("El nickname debe ser un texto válido");
+      }
+
+      const cleanNickname = nickname.trim();
+
+      if (cleanNickname.length < 2 || cleanNickname.length > 20) {
+        throw new Error("El nickname debe tener entre 2 y 20 caracteres");
+      }
+
+      // Guardar en Firestore
+      await this.db.collection("users").doc(this.currentUser.uid).set(
+        {
+          nickname: cleanNickname,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          userId: this.currentUser.uid,
+          email: this.currentUser.email,
+          displayName: this.currentUser.displayName,
+        },
+        { merge: true }
+      );
+
+      console.log(
+        "🔥 FirebaseManager: ✅ Nickname configurado:",
+        cleanNickname
+      );
+      return true;
+    } catch (error) {
+      console.error(
+        "🔥 FirebaseManager: ❌ Error configurando nickname:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener nickname del usuario (o generar uno por defecto)
+   * @returns {Promise<string>}
+   */
+  async getUserNickname() {
+    try {
+      if (!this.isReady() || !this.currentUser) {
+        console.log("🔥 FirebaseManager: No listo para obtener nickname");
+        return "Jugador Anónimo";
+      }
+
+      if (this.currentUser.isAnonymous) {
+        return "Jugador Anónimo";
+      }
+
+      // Intentar obtener de Firestore
+      const userDoc = await this.db
+        .collection("users")
+        .doc(this.currentUser.uid)
+        .get();
+
+      if (userDoc.exists && userDoc.data().nickname) {
+        const nickname = userDoc.data().nickname;
+        console.log(
+          "🔥 FirebaseManager: Nickname obtenido de Firestore:",
+          nickname
+        );
+        return nickname;
+      }
+
+      // Fallback a nombre de Google
+      const fallbackName =
+        this.currentUser.displayName ||
+        this.currentUser.email?.split("@")[0] ||
+        "Usuario";
+
+      console.log(
+        "🔥 FirebaseManager: Usando nickname por defecto:",
+        fallbackName
+      );
+      return fallbackName;
+    } catch (error) {
+      console.warn("🔥 FirebaseManager: Error obteniendo nickname:", error);
+      return (
+        this.currentUser?.displayName ||
+        this.currentUser?.email?.split("@")[0] ||
+        "Usuario"
+      );
+    }
   }
 
   // ================

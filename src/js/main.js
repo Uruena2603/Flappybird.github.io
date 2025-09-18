@@ -359,6 +359,21 @@ function integrateManagersWithGame() {
   try {
     console.log("🔗 Integrating managers with game...");
 
+    // NUEVO: Pasar managers a la clase Game
+    if (game && typeof game.setManagers === "function") {
+      game.setManagers({
+        firebase: firebaseManager,
+        audio: audioManager,
+        storage: storageManager,
+        asset: assetManager,
+      });
+      console.log("✅ Managers passed to Game class successfully!");
+    } else {
+      console.warn(
+        "⚠️ Game instance not ready or setManagers method not found"
+      );
+    }
+
     // Registrar sonidos en el AudioManager
     if (assetManager.getSound("JUMP")) {
       audioManager.registerSound(
