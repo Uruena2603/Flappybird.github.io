@@ -186,12 +186,12 @@ class Game {
   isModalActive() {
     // Verificar si existe algún modal en el DOM
     const modals = [
-      document.querySelector('.nickname-modal-overlay'),
-      document.querySelector('.registration-modal-overlay'),
+      document.querySelector(".nickname-modal-overlay"),
+      document.querySelector(".registration-modal-overlay"),
       // Agregar otros modales aquí en el futuro
     ];
 
-    return modals.some(modal => modal !== null);
+    return modals.some((modal) => modal !== null);
   }
 
   /**
@@ -497,7 +497,7 @@ class Game {
       input.addEventListener("input", (e) => {
         // NUEVO: Prevenir que el evento llegue al juego
         e.stopPropagation();
-        
+
         const value = input.value.trim();
         const length = value.length;
 
@@ -530,14 +530,14 @@ class Game {
       });
 
       // NUEVO: Manejar eventos de teclado específicamente para el modal
-      input.addEventListener('keydown', (e) => {
+      input.addEventListener("keydown", (e) => {
         // CRÍTICO: Prevenir que lleguen al listener global del juego
         e.stopPropagation();
-        
-        if (e.key === 'Enter' && !confirmBtn.disabled) {
+
+        if (e.key === "Enter" && !confirmBtn.disabled) {
           e.preventDefault();
           confirmBtn.click();
-        } else if (e.key === 'Escape') {
+        } else if (e.key === "Escape") {
           e.preventDefault();
           cancelBtn.click();
         }
@@ -545,11 +545,11 @@ class Game {
       });
 
       // Prevenir eventos en todo el modal
-      overlay.addEventListener('keydown', (e) => {
+      overlay.addEventListener("keydown", (e) => {
         e.stopPropagation();
       });
 
-      overlay.addEventListener('keyup', (e) => {
+      overlay.addEventListener("keyup", (e) => {
         e.stopPropagation();
       });
 
