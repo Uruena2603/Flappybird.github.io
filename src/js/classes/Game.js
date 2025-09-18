@@ -496,14 +496,21 @@ class Game {
   }
 
   /**
-   * Maneja el proceso de registro con Google
+   * Maneja el proceso de registro con Google (MEJORADO PARA PRODUCCIÓN)
    * @param {HTMLElement} modal - Modal a cerrar
    */
   async handleGoogleSignIn(modal) {
     try {
-      // Mostrar loading
+      const isProduction = window.location.hostname !== 'localhost' && 
+                          window.location.hostname !== '127.0.0.1';
+
+      // Mostrar loading apropiado según el entorno
       const loadingDiv = document.createElement("div");
-      loadingDiv.textContent = "⏳ Conectando con Google...";
+      const loadingText = isProduction 
+        ? "🚀 Redirigiendo a Google..." 
+        : "⏳ Conectando con Google...";
+      
+      loadingDiv.textContent = loadingText;
       loadingDiv.style.cssText = `
         position: absolute;
         top: 50%;
@@ -514,12 +521,26 @@ class Game {
         padding: 20px;
         border-radius: 10px;
         font-size: 16px;
+        text-align: center;
       `;
+
+      // Agregar información adicional para producción
+      if (isProduction) {
+        const infoDiv = document.createElement("div");
+        infoDiv.textContent = "Se abrirá una nueva pestaña para autenticación";
+        infoDiv.style.cssText = `
+          font-size: 12px;
+          color: #ccc;
+          margin-top: 10px;
+        `;
+        loadingDiv.appendChild(infoDiv);
+      }
+
       modal.appendChild(loadingDiv);
 
       console.log("🔥 Game: Iniciando autenticación con Google...");
 
-      // Llamar al FirebaseManager para hacer el upgrade con mejor manejo de errores
+      // Llamar al FirebaseManager
       const success = await this.firebaseManager.upgradeAnonymousToGoogle();
 
       // Remover loading
@@ -528,31 +549,52 @@ class Game {
       }
 
       if (success) {
-        console.log("🔥 Game: ✅ Registro/Login exitoso");
-        this.showSuccessMessage(modal);
+        if (isProduction) {
+          // En producción, el redirect manejará el cierre del modal
+          console.log("🔥 Game: Redirect iniciado - esperando resultado...");
+          
+          // Mostrar mensaje temporal
+          const redirectMsg = document.createElement("div");
+          redirectMsg.textContent = "Si no se redirige automáticamente, recarga la página";
+          redirectMsg.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: #FFD700;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: center;
+          `;
+          modal.appendChild(redirectMsg);
+          
+          // Auto-remover después de 5 segundos
+          setTimeout(() => {
+            if (redirectMsg && redirectMsg.parentNode) {
+              redirectMsg.parentNode.removeChild(redirectMsg);
+            }
+          }, 5000);
+        } else {
+          console.log("🔥 Game: ✅ Registro/Login exitoso");
+          this.showSuccessMessage(modal);
+        }
       } else {
         console.log("🔥 Game: ❌ Error en proceso");
-        this.showErrorMessage(
-          modal,
-          "Error inesperado en el proceso de registro"
-        );
+        this.showErrorMessage(modal, "Error inesperado en el proceso de registro");
       }
     } catch (error) {
       console.error("🔥 Game: Error en handleGoogleSignIn:", error);
 
       // Remover loading si aún está presente
-      const loadingDiv = modal.querySelector(
-        'div[textContent="⏳ Conectando con Google..."]'
-      );
+      const loadingDiv = modal.querySelector('div');
       if (loadingDiv && loadingDiv.parentNode) {
         loadingDiv.parentNode.removeChild(loadingDiv);
       }
 
       // Mostrar mensaje de error específico
-      this.showErrorMessage(
-        modal,
-        error.message || "Error en el proceso de registro"
-      );
+      this.showErrorMessage(modal, error.message || "Error en el proceso de registro");
     }
   }
 
