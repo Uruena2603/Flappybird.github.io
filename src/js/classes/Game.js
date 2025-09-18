@@ -340,20 +340,399 @@ class Game {
   }
 
   /**
-   * Muestra el leaderboard para usuarios registrados
+   * Muestra el leaderboard (ACTUALIZADO CON NICKNAME INTELIGENTE)
    */
   async showLeaderboard() {
+    console.log("🔥 Game: Abriendo leaderboard...");
+    
     try {
-      console.log("🔥 Game: Mostrando leaderboard...");
-
-      // TODO: Implementar en Etapa 5
-      // Por ahora, solo reiniciar el juego
-      console.log("🔥 Game: Leaderboard no implementado aún, reiniciando...");
-      this.restart();
+      // Verificar si el usuario necesita configurar nickname
+      const needsSetup = await this.firebaseManager.needsNicknameSetup();
+      
+      if (needsSetup) {
+        console.log("🔥 Game: Usuario necesita configurar nickname personalizado");
+        
+        try {
+          const nickname = await this.showNicknameModal();
+          console.log("🔥 Game: ✅ Nickname configurado:", nickname);
+        } catch (error) {
+          console.log("🔥 Game: Configuración de nickname cancelada");
+          this.restart(); // Volver al juego
+          return;
+        }
+      }
+      
+      // Continuar con el leaderboard (se implementará en Etapa 6)
+      console.log("🔥 Game: Leaderboard con nickname listo - implementar UI en Etapa 6");
+      
+      // Temporal: Mostrar mensaje de éxito
+      const currentNickname = await this.firebaseManager.getUserNickname();
+      this.showTemporaryMessage(`🎮 ¡Listo, ${currentNickname}!`, "Leaderboard se implementará en la siguiente etapa");
+      
+      setTimeout(() => {
+        this.restart();
+      }, 3000);
+      
     } catch (error) {
       console.error("🔥 Game: Error mostrando leaderboard:", error);
       this.restart();
     }
+  }
+
+  /**
+   * Muestra modal para configurar nickname
+   * @returns {Promise<string>} Nickname configurado
+   */
+  async showNicknameModal() {
+    return new Promise((resolve, reject) => {
+      // Crear overlay del modal
+      const overlay = document.createElement('div');
+      overlay.className = 'nickname-modal-overlay';
+      overlay.innerHTML = `
+        <div class="nickname-modal">
+          <div class="nickname-header">
+            <h2>🎮 ¡Personaliza tu Nickname!</h2>
+            <p>Elige un nombre único para aparecer en el leaderboard</p>
+          </div>
+          
+          <div class="nickname-form">
+            <input 
+              type="text" 
+              id="nickname-input" 
+              placeholder="Ingresa tu nickname..." 
+              maxlength="20"
+              autofocus
+            >
+            <div class="nickname-counter">
+              <span id="char-counter">0/20</span>
+            </div>
+            <div class="nickname-suggestions">
+              <small>Sugerencia: Usa letras, números y guiones</small>
+            </div>
+            <div class="nickname-error" id="nickname-error" style="display: none;"></div>
+          </div>
+          
+          <div class="nickname-actions">
+            <button id="cancel-nickname" class="btn-secondary">Cancelar</button>
+            <button id="confirm-nickname" class="btn-primary" disabled>Confirmar</button>
+          </div>
+        </div>
+      `;
+
+      // Agregar estilos al modal
+      this.addNicknameModalStyles();
+
+      // Referencias a elementos
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector('#nickname-input');
+      const confirmBtn = overlay.querySelector('#confirm-nickname');
+      const cancelBtn = overlay.querySelector('#cancel-nickname');
+      const errorDiv = overlay.querySelector('#nickname-error');
+      const counter = overlay.querySelector('#char-counter');
+
+      // Validación en tiempo real
+      input.addEventListener('input', () => {
+        const value = input.value.trim();
+        const length = value.length;
+        
+        counter.textContent = `${length}/20`;
+        
+        // Validación de caracteres
+        const validChars = /^[a-zA-Z0-9\s\-_]*$/;
+        const isValidChars = validChars.test(value);
+        
+        if (length >= 2 && length <= 20 && isValidChars) {
+          confirmBtn.disabled = false;
+          confirmBtn.classList.remove('disabled');
+          input.classList.remove('error');
+          errorDiv.style.display = 'none';
+          
+          // Cambiar color del contador a verde
+          counter.style.color = '#2ecc71';
+        } else {
+          confirmBtn.disabled = true;
+          confirmBtn.classList.add('disabled');
+          counter.style.color = length > 20 ? '#e74c3c' : '#95a5a6';
+          
+          if (!isValidChars && value.length > 0) {
+            this.showNicknameError(errorDiv, 'Solo se permiten letras, números, espacios y guiones');
+          }
+        }
+      });
+
+      // Confirmar nickname
+      confirmBtn.addEventListener('click', async () => {
+        const nickname = input.value.trim();
+        
+        if (nickname.length < 2) {
+          this.showNicknameError(errorDiv, 'El nickname debe tener al menos 2 caracteres');
+          return;
+        }
+
+        confirmBtn.textContent = 'Verificando...';
+        confirmBtn.disabled = true;
+
+        try {
+          await this.firebaseManager.setUserNickname(nickname);
+          document.body.removeChild(overlay);
+          resolve(nickname);
+        } catch (error) {
+          confirmBtn.textContent = 'Confirmar';
+          confirmBtn.disabled = false;
+          this.showNicknameError(errorDiv, error.message);
+        }
+      });
+
+      // Cancelar
+      cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        reject(new Error('Configuración de nickname cancelada'));
+      });
+
+      // Enter para confirmar, Escape para cancelar
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !confirmBtn.disabled) {
+          confirmBtn.click();
+        } else if (e.key === 'Escape') {
+          cancelBtn.click();
+        }
+      });
+
+      // Focus automático en el input
+      setTimeout(() => input.focus(), 100);
+    });
+  }
+
+  /**
+   * Muestra error en el modal de nickname
+   */
+  showNicknameError(errorDiv, message) {
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    errorDiv.classList.add('shake');
+    
+    setTimeout(() => {
+      errorDiv.classList.remove('shake');
+    }, 500);
+  }
+
+  /**
+   * Muestra mensaje temporal en pantalla
+   */
+  showTemporaryMessage(title, subtitle) {
+    const overlay = document.createElement('div');
+    overlay.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.8);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 10000; font-family: Arial;
+      ">
+        <div style="
+          background: linear-gradient(145deg, #2c3e50, #34495e);
+          color: white; text-align: center; padding: 30px;
+          border-radius: 15px; max-width: 400px;
+          border: 2px solid #3498db;
+        ">
+          <h2 style="color: #FFD700; margin-bottom: 15px;">${title}</h2>
+          <p style="margin-bottom: 20px;">${subtitle}</p>
+          <div style="font-size: 32px;">✨</div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    setTimeout(() => {
+      document.body.removeChild(overlay);
+    }, 3000);
+  }
+
+  /**
+   * Agrega estilos CSS para el modal de nickname
+   */
+  addNicknameModalStyles() {
+    if (document.getElementById('nickname-modal-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'nickname-modal-styles';
+    style.textContent = `
+      .nickname-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      .nickname-modal {
+        background: linear-gradient(145deg, #2c3e50, #34495e);
+        border-radius: 15px;
+        padding: 30px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.4s ease-out;
+        border: 2px solid #3498db;
+      }
+
+      .nickname-header h2 {
+        color: #ecf0f1;
+        margin-bottom: 10px;
+        text-align: center;
+        font-size: 1.5em;
+      }
+
+      .nickname-header p {
+        color: #bdc3c7;
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 0.9em;
+      }
+
+      .nickname-form input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #3498db;
+        border-radius: 8px;
+        font-size: 16px;
+        background: #ecf0f1;
+        color: #2c3e50;
+        font-family: inherit;
+        transition: border-color 0.3s;
+        box-sizing: border-box;
+      }
+
+      .nickname-form input:focus {
+        outline: none;
+        border-color: #2ecc71;
+        box-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
+      }
+
+      .nickname-form input.error {
+        border-color: #e74c3c;
+        box-shadow: 0 0 10px rgba(231, 76, 60, 0.3);
+      }
+
+      .nickname-counter {
+        text-align: right;
+        margin-top: 5px;
+        color: #95a5a6;
+        font-size: 0.8em;
+        transition: color 0.3s;
+      }
+
+      .nickname-suggestions {
+        text-align: center;
+        margin-top: 5px;
+        color: #7f8c8d;
+        font-size: 0.75em;
+      }
+
+      .nickname-error {
+        color: #e74c3c;
+        text-align: center;
+        margin-top: 10px;
+        padding: 8px;
+        background: rgba(231, 76, 60, 0.1);
+        border-radius: 5px;
+        border: 1px solid rgba(231, 76, 60, 0.3);
+        font-size: 0.85em;
+      }
+
+      .nickname-error.shake {
+        animation: shake 0.5s ease-in-out;
+      }
+
+      .nickname-actions {
+        display: flex;
+        gap: 15px;
+        margin-top: 25px;
+      }
+
+      .nickname-actions button {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-family: inherit;
+      }
+
+      .btn-primary {
+        background: linear-gradient(145deg, #3498db, #2980b9);
+        color: white;
+      }
+
+      .btn-primary:hover:not(.disabled) {
+        background: linear-gradient(145deg, #2980b9, #1abc9c);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+      }
+
+      .btn-primary.disabled {
+        background: #95a5a6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .btn-secondary {
+        background: linear-gradient(145deg, #95a5a6, #7f8c8d);
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: linear-gradient(145deg, #7f8c8d, #95a5a6);
+        transform: translateY(-2px);
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      @keyframes slideIn {
+        from { 
+          opacity: 0; 
+          transform: translateY(-50px) scale(0.9); 
+        }
+        to { 
+          opacity: 1; 
+          transform: translateY(0) scale(1); 
+        }
+      }
+
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+      }
+
+      /* Responsive */
+      @media (max-width: 480px) {
+        .nickname-modal {
+          width: 95%;
+          padding: 20px;
+        }
+        
+        .nickname-actions {
+          flex-direction: column;
+        }
+      }
+    `;
+    
+    document.head.appendChild(style);
   }
 
   /**

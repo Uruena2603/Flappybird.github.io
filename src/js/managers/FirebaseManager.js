@@ -795,6 +795,131 @@ class FirebaseManager {
 
     console.log("🔥 FirebaseManager: ✅ Recursos limpiados");
   }
+  /**
+   * Verificar si un nickname ya existe
+   * @param {string} nickname 
+   * @returns {Promise<boolean>}
+   */
+  async checkNicknameExists(nickname) {
+    try {
+      if (!this.isReady()) return false;
+      
+      const snapshot = await this.db
+        .collection('users')
+        .where('nickname', '==', nickname.trim())
+        .limit(1)
+        .get();
+      
+      return !snapshot.empty;
+    } catch (error) {
+      console.warn("🔥 FirebaseManager: Error verificando nickname:", error);
+      return false; // En caso de error, permitir el nickname
+    }
+  }
+
+  /**
+   * Configurar nickname personalizado del usuario (MEJORADO CON VALIDACIÓN)
+   * @param {string} nickname - Nickname elegido por el usuario
+   * @returns {Promise<boolean>}
+   */
+  async setUserNickname(nickname) {
+    try {
+      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
+        throw new Error('Usuario no válido para configurar nickname');
+      }
+      
+      // Validar nickname
+      const cleanNickname = nickname.trim();
+      if (!cleanNickname || cleanNickname.length < 2 || cleanNickname.length > 20) {
+        throw new Error('El nickname debe tener entre 2 y 20 caracteres');
+      }
+      
+      // Verificar caracteres válidos (letras, números, espacios, guiones)
+      const validChars = /^[a-zA-Z0-9\s\-_]+$/;
+      if (!validChars.test(cleanNickname)) {
+        throw new Error('El nickname solo puede contener letras, números, espacios y guiones');
+      }
+      
+      // Verificar si el nickname ya existe
+      const nicknameExists = await this.checkNicknameExists(cleanNickname);
+      if (nicknameExists) {
+        throw new Error('Este nickname ya está en uso, elige otro');
+      }
+      
+      // Guardar en Firestore
+      await this.db.collection('users').doc(this.currentUser.uid).set({
+        nickname: cleanNickname,
+        email: this.currentUser.email,
+        displayName: this.currentUser.displayName,
+        photoURL: this.currentUser.photoURL,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      
+      console.log("🔥 FirebaseManager: ✅ Nickname configurado:", cleanNickname);
+      return true;
+    } catch (error) {
+      console.error("🔥 FirebaseManager: ❌ Error configurando nickname:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener nickname del usuario actual (MEJORADO)
+   * @returns {Promise<string>}
+   */
+  async getUserNickname() {
+    try {
+      if (!this.isReady() || !this.currentUser) return "Jugador Anónimo";
+      
+      if (this.currentUser.isAnonymous) return "Jugador Anónimo";
+      
+      // Intentar obtener de Firestore primero
+      const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+      
+      if (userDoc.exists && userDoc.data().nickname) {
+        return userDoc.data().nickname;
+      }
+      
+      // Fallback: usar displayName de Google o email
+      return this.currentUser.displayName || 
+             this.currentUser.email?.split('@')[0] || 
+             "Usuario";
+             
+    } catch (error) {
+      console.warn("🔥 FirebaseManager: Error obteniendo nickname:", error);
+      return this.currentUser?.displayName || "Usuario";
+    }
+  }
+
+  /**
+   * Verificar si el usuario necesita configurar nickname personalizado
+   * @returns {Promise<boolean>}
+   */
+  async needsNicknameSetup() {
+    try {
+      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
+        return false;
+      }
+      
+      const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+      
+      // Si no existe documento o no tiene nickname personalizado
+      if (!userDoc.exists || !userDoc.data().nickname) {
+        return true;
+      }
+      
+      const nickname = userDoc.data().nickname;
+      
+      // Si el nickname es igual al displayName o email, necesita personalización
+      return nickname === this.currentUser.displayName || 
+             nickname === this.currentUser.email?.split('@')[0];
+             
+    } catch (error) {
+      console.warn("🔥 FirebaseManager: Error verificando necesidad de nickname:", error);
+      return false;
+    }
+  }
 }
 
 // Verificar que no haya conflictos con otros managers
