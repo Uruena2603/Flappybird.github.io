@@ -54,23 +54,24 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-    <!-- Firebase Configuration (carga condicionalmente) -->
+    <!-- Firebase Configuration - Carga condicional para desarrollo/producción -->
     <script>
       // Intentar cargar configuración de Firebase
-      try {
-        const script = document.createElement("script");
-        script.src = "./firebase-config.js";
-        script.onerror = function () {
-          console.log(
-            "🔥 Firebase: Archivo de configuración no encontrado, continuando sin Firebase"
-          );
+      (function() {
+        const script = document.createElement('script');
+        script.src = './firebase-config.js';
+        script.onerror = function() {
+          console.log('🔥 Firebase: Configuración no encontrada - ejecutando en modo offline');
+          console.log('ℹ️  Para habilitar Firebase, consulta FIREBASE_SETUP.md');
+          
+          // Crear configuración dummy para evitar errores
+          window.getFirebaseConfig = () => null;
+          window.isFirebaseConfigured = () => false;
+          window.initializeFirebaseConfig = () => false;
+          window.isDevelopment = window.location.hostname === 'localhost';
         };
         document.head.appendChild(script);
-      } catch (error) {
-        console.log(
-          "🔥 Firebase: Error cargando configuración, continuando sin Firebase"
-        );
-      }
+      })();
     </script>
 
     <!-- Scripts de los managers -->
