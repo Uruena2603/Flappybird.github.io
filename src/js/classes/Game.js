@@ -415,10 +415,10 @@ class Game {
 
       // Obtener datos del leaderboard usando el nuevo backend
       console.log("🔥 Game: Obteniendo datos del leaderboard...");
-      
+
       const [globalLeaderboard, userRanking] = await Promise.all([
         this.firebaseManager.getGlobalLeaderboard(10),
-        this.firebaseManager.getUserRanking()
+        this.firebaseManager.getUserRanking(),
       ]);
 
       console.log("🔥 Game: ✅ Datos del leaderboard obtenidos");
@@ -427,27 +427,27 @@ class Game {
 
       // Temporal: Mostrar información en consola hasta implementar UI en Etapa 6
       const currentNickname = await this.firebaseManager.getUserNickname();
-      
+
       let leaderboardInfo = `🎮 ¡Hola, ${currentNickname}!\n\n`;
-      
+
       if (userRanking && userRanking.bestScore > 0) {
         leaderboardInfo += `🏆 Tu mejor puntuación: ${userRanking.bestScore}\n`;
         leaderboardInfo += `📍 Tu posición: #${userRanking.rank}\n`;
         leaderboardInfo += `🎮 Juegos totales: ${userRanking.totalGames}\n`;
         leaderboardInfo += `📊 Promedio: ${userRanking.averageScore}\n\n`;
       }
-      
+
       leaderboardInfo += `� TOP 10 GLOBAL:\n`;
       globalLeaderboard.forEach((entry, index) => {
         const indicator = entry.isCurrentUser ? "👤" : "🏅";
         leaderboardInfo += `${indicator} #${entry.rank} ${entry.nickname}: ${entry.score}\n`;
       });
-      
+
       leaderboardInfo += `\n🔄 UI del leaderboard se implementará en Etapa 6`;
 
       this.showTemporaryMessage(
         "📋 Leaderboard Backend Activo",
-        leaderboardInfo.replace(/\n/g, '<br>')
+        leaderboardInfo.replace(/\n/g, "<br>")
       );
 
       setTimeout(() => {
@@ -1523,7 +1523,7 @@ class Game {
   async endGame() {
     this.playSound("gameOver");
     this.screenShake = 20;
-    
+
     // Calcular tiempo de juego en segundos
     const gameTimeInSeconds = this.gameTime / 1000;
 
@@ -1549,27 +1549,32 @@ class Game {
       accuracy: this.calculateAccuracy(),
       survivalTime: gameTimeInSeconds,
       maxHeight: this.bird?.maxHeight || 0,
-      averageHeight: this.bird?.averageHeight || 0
+      averageHeight: this.bird?.averageHeight || 0,
     };
 
     // Guardar estadísticas locales
     this.saveStats();
 
     // Intentar guardar en Firebase si el usuario está registrado
-    if (this.firebaseManager && this.firebaseManager.isUserPermanentlyRegistered()) {
+    if (
+      this.firebaseManager &&
+      this.firebaseManager.isUserPermanentlyRegistered()
+    ) {
       try {
         console.log("🔥 Game: Guardando puntuación en Firebase...");
         const saveSuccess = await this.firebaseManager.saveScore(
-          this.score, 
-          this.currentLevel, 
-          gameTimeInSeconds, 
+          this.score,
+          this.currentLevel,
+          gameTimeInSeconds,
           gameStats
         );
-        
+
         if (saveSuccess) {
           console.log("🔥 Game: ✅ Puntuación guardada en Firebase");
         } else {
-          console.warn("🔥 Game: ⚠️ No se pudo guardar la puntuación en Firebase");
+          console.warn(
+            "🔥 Game: ⚠️ No se pudo guardar la puntuación en Firebase"
+          );
         }
       } catch (error) {
         console.error("🔥 Game: ❌ Error guardando puntuación:", error);
@@ -1587,10 +1592,10 @@ class Game {
    */
   calculateAccuracy() {
     if (!this.bird || !this.bird.totalJumps) return 0;
-    
+
     const totalJumps = this.bird.totalJumps;
     const effectiveJumps = Math.max(1, this.score * 2); // Estimación de saltos efectivos
-    
+
     return Math.min(100, Math.round((effectiveJumps / totalJumps) * 100));
   }
 

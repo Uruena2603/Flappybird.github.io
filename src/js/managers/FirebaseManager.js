@@ -797,19 +797,19 @@ class FirebaseManager {
   }
   /**
    * Verificar si un nickname ya existe
-   * @param {string} nickname 
+   * @param {string} nickname
    * @returns {Promise<boolean>}
    */
   async checkNicknameExists(nickname) {
     try {
       if (!this.isReady()) return false;
-      
+
       const snapshot = await this.db
-        .collection('users')
-        .where('nickname', '==', nickname.trim())
+        .collection("users")
+        .where("nickname", "==", nickname.trim())
         .limit(1)
         .get();
-      
+
       return !snapshot.empty;
     } catch (error) {
       console.warn("🔥 FirebaseManager: Error verificando nickname:", error);
@@ -824,42 +824,61 @@ class FirebaseManager {
    */
   async setUserNickname(nickname) {
     try {
-      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
-        throw new Error('Usuario no válido para configurar nickname');
+      if (
+        !this.isReady() ||
+        !this.currentUser ||
+        this.currentUser.isAnonymous
+      ) {
+        throw new Error("Usuario no válido para configurar nickname");
       }
-      
+
       // Validar nickname
       const cleanNickname = nickname.trim();
-      if (!cleanNickname || cleanNickname.length < 2 || cleanNickname.length > 20) {
-        throw new Error('El nickname debe tener entre 2 y 20 caracteres');
+      if (
+        !cleanNickname ||
+        cleanNickname.length < 2 ||
+        cleanNickname.length > 20
+      ) {
+        throw new Error("El nickname debe tener entre 2 y 20 caracteres");
       }
-      
+
       // Verificar caracteres válidos (letras, números, espacios, guiones)
       const validChars = /^[a-zA-Z0-9\s\-_]+$/;
       if (!validChars.test(cleanNickname)) {
-        throw new Error('El nickname solo puede contener letras, números, espacios y guiones');
+        throw new Error(
+          "El nickname solo puede contener letras, números, espacios y guiones"
+        );
       }
-      
+
       // Verificar si el nickname ya existe
       const nicknameExists = await this.checkNicknameExists(cleanNickname);
       if (nicknameExists) {
-        throw new Error('Este nickname ya está en uso, elige otro');
+        throw new Error("Este nickname ya está en uso, elige otro");
       }
-      
+
       // Guardar en Firestore
-      await this.db.collection('users').doc(this.currentUser.uid).set({
-        nickname: cleanNickname,
-        email: this.currentUser.email,
-        displayName: this.currentUser.displayName,
-        photoURL: this.currentUser.photoURL,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      
-      console.log("🔥 FirebaseManager: ✅ Nickname configurado:", cleanNickname);
+      await this.db.collection("users").doc(this.currentUser.uid).set(
+        {
+          nickname: cleanNickname,
+          email: this.currentUser.email,
+          displayName: this.currentUser.displayName,
+          photoURL: this.currentUser.photoURL,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log(
+        "🔥 FirebaseManager: ✅ Nickname configurado:",
+        cleanNickname
+      );
       return true;
     } catch (error) {
-      console.error("🔥 FirebaseManager: ❌ Error configurando nickname:", error);
+      console.error(
+        "🔥 FirebaseManager: ❌ Error configurando nickname:",
+        error
+      );
       throw error;
     }
   }
@@ -871,21 +890,25 @@ class FirebaseManager {
   async getUserNickname() {
     try {
       if (!this.isReady() || !this.currentUser) return "Jugador Anónimo";
-      
+
       if (this.currentUser.isAnonymous) return "Jugador Anónimo";
-      
+
       // Intentar obtener de Firestore primero
-      const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
-      
+      const userDoc = await this.db
+        .collection("users")
+        .doc(this.currentUser.uid)
+        .get();
+
       if (userDoc.exists && userDoc.data().nickname) {
         return userDoc.data().nickname;
       }
-      
+
       // Fallback: usar displayName de Google o email
-      return this.currentUser.displayName || 
-             this.currentUser.email?.split('@')[0] || 
-             "Usuario";
-             
+      return (
+        this.currentUser.displayName ||
+        this.currentUser.email?.split("@")[0] ||
+        "Usuario"
+      );
     } catch (error) {
       console.warn("🔥 FirebaseManager: Error obteniendo nickname:", error);
       return this.currentUser?.displayName || "Usuario";
@@ -898,25 +921,36 @@ class FirebaseManager {
    */
   async needsNicknameSetup() {
     try {
-      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
+      if (
+        !this.isReady() ||
+        !this.currentUser ||
+        this.currentUser.isAnonymous
+      ) {
         return false;
       }
-      
-      const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
-      
+
+      const userDoc = await this.db
+        .collection("users")
+        .doc(this.currentUser.uid)
+        .get();
+
       // Si no existe documento o no tiene nickname personalizado
       if (!userDoc.exists || !userDoc.data().nickname) {
         return true;
       }
-      
+
       const nickname = userDoc.data().nickname;
-      
+
       // Si el nickname es igual al displayName o email, necesita personalización
-      return nickname === this.currentUser.displayName || 
-             nickname === this.currentUser.email?.split('@')[0];
-             
+      return (
+        nickname === this.currentUser.displayName ||
+        nickname === this.currentUser.email?.split("@")[0]
+      );
     } catch (error) {
-      console.warn("🔥 FirebaseManager: Error verificando necesidad de nickname:", error);
+      console.warn(
+        "🔥 FirebaseManager: Error verificando necesidad de nickname:",
+        error
+      );
       return false;
     }
   }
@@ -924,7 +958,8 @@ class FirebaseManager {
   // ==================== LEADERBOARD SYSTEM ====================
 
   /**
-   * Guarda puntuación en el leaderboard global
+   * Guarda puntuación en el leaderboard global con nueva arquitectura separada
+   * NUEVA LÓGICA: Siempre guarda en game_sessions, solo actualiza leaderboard si es record
    * @param {number} score - Puntuación obtenida
    * @param {number} level - Nivel alcanzado
    * @param {number} gameTime - Tiempo de juego en segundos
@@ -933,92 +968,322 @@ class FirebaseManager {
    */
   async saveScore(score, level, gameTime, gameStats = {}) {
     try {
-      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
-        console.warn("🔥 FirebaseManager: Usuario anónimo no puede guardar puntuaciones");
+      // Verificaciones de seguridad mejoradas
+      if (!this.isReady()) {
+        console.warn("🔥 FirebaseManager: No está listo para guardar score");
         return false;
       }
 
-      console.log(`🔥 FirebaseManager: Guardando score - Score: ${score}, Level: ${level}, Time: ${gameTime}s`);
-      
-      const nickname = await this.getUserNickname();
-      
+      if (!this.currentUser) {
+        console.warn("🔥 FirebaseManager: No hay usuario autenticado");
+        return false;
+      }
+
+      if (this.currentUser.isAnonymous) {
+        console.log("🔥 FirebaseManager: Usuario anónimo - no se guarda score en leaderboard");
+        return false;
+      }
+
+      console.log(
+        `🔥 FirebaseManager: Guardando score - Score: ${score}, Level: ${level}, Time: ${gameTime}s`
+      );
+
+      const userNickname = await this.getUserNickname();
+      const userId = this.currentUser.uid;
+
+      // Datos completos del score para el leaderboard global
       const scoreData = {
-        userId: this.currentUser.uid,
-        nickname: nickname,
+        userId: userId,
+        nickname: userNickname,
         email: this.currentUser.email,
         score: score,
         level: level,
         gameTime: gameTime,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        
+
         // Estadísticas adicionales
         totalJumps: gameStats.totalJumps || 0,
         pipesPassedCount: Math.floor(score), // pipes pasados = score
         accuracy: gameStats.accuracy || 0,
         maxHeight: gameStats.maxHeight || 0,
-        
+
         // Metadatos
         gameVersion: "2.0.0",
         platform: this.getBrowserInfo(),
-        deviceType: this.getDeviceType()
+        deviceType: this.getDeviceType(),
+        userAgent: navigator.userAgent,
       };
+
+      // 🎯 USAR BATCH OPERATIONS PARA OPERACIONES ATÓMICAS
+      console.log("🔥 FirebaseManager: Iniciando operaciones batch...");
+      const batch = this.db.batch();
+
+      // 1. Guardar en leaderboard global
+      const scoreRef = this.db.collection("leaderboard_scores").doc();
+      batch.set(scoreRef, scoreData);
+      console.log("🔥 FirebaseManager: Agregado al batch - leaderboard global");
+
+      // 2. Guardar en historial personal del usuario
+      console.log("🔥 FirebaseManager: Guardando en historial de partidas...");
+      const gameHistoryRef = this.db
+        .collection("user_game_history")
+        .doc(userId)
+        .collection("games")
+        .doc();
       
-      // Agregar a la colección de puntuaciones
-      const docRef = await this.db.collection('leaderboard_scores').add(scoreData);
+      batch.set(gameHistoryRef, {
+        ...scoreData,
+        gameId: gameHistoryRef.id,
+      });
+      console.log("🔥 FirebaseManager: Agregado al batch - historial personal");
+
+      // 3. Actualizar estadísticas personales del usuario
+      const userStatsRef = this.db.collection("user_stats").doc(userId);
+      batch.set(userStatsRef, {
+        userId: userId,
+        nickname: userNickname,
+        email: this.currentUser.email,
+        totalGames: firebase.firestore.FieldValue.increment(1),
+        bestScore: score, // Se actualizará con el máximo en el servidor
+        totalPlayTime: firebase.firestore.FieldValue.increment(gameTime),
+        lastPlayed: firebase.firestore.FieldValue.serverTimestamp(),
+        averageScore: score, // Se calculará correctamente en el servidor
+        level: level,
+      }, { merge: true });
+      console.log("🔥 FirebaseManager: Agregado al batch - estadísticas personales");
+
+      // Ejecutar todas las operaciones de forma atómica
+      await batch.commit();
       
-      // Actualizar estadísticas personales del usuario
-      await this.updateUserPersonalStats(score, level, gameTime, gameStats);
-      
-      console.log("🔥 FirebaseManager: ✅ Puntuación guardada con ID:", docRef.id);
+      console.log("🔥 FirebaseManager: ✅ Score guardado exitosamente con batch operations");
       return true;
+
     } catch (error) {
       console.error("🔥 FirebaseManager: ❌ Error guardando score:", error);
+      
+      // Diagnóstico detallado mejorado
+      if (error.code === "permission-denied") {
+        console.error("🚨 Error de permisos - Verificar reglas de Firestore:");
+        console.error("   - ¿Las reglas están publicadas?");
+        console.error(`   - ¿El usuario está autenticado? ${!!this.currentUser}`);
+        console.error(`   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`);
+        console.error(`   - UID del usuario: ${this.currentUser?.uid}`);
+        console.error(`   - Email del usuario: ${this.currentUser?.email}`);
+        console.error("   - Verifica que las reglas permitan escritura para usuarios registrados");
+      } else {
+        console.error("   - Tipo de error:", error.code);
+        console.error("   - Mensaje:", error.message);
+      }
+      
       return false;
     }
   }
 
   /**
-   * Obtiene el leaderboard global
+   * 🎯 NUEVO MÉTODO: Verifica si es record personal y actualiza leaderboard
+   * @param {string} userId - ID del usuario
+   * @param {string} nickname - Nickname del usuario
+   * @param {number} score - Score actual
+   * @param {number} level - Nivel actual
+   * @param {number} gameTime - Tiempo de juego
+   * @param {Object} gameSessionData - Datos completos de la sesión
+   * @returns {Promise<boolean>} - true si se actualizó el leaderboard
+   */
+  async checkAndUpdateLeaderboard(
+    userId,
+    nickname,
+    score,
+    level,
+    gameTime,
+    gameSessionData
+  ) {
+    try {
+      // Obtener record actual del usuario
+      const currentRecordQuery = await this.db
+        .collection("leaderboard")
+        .where("userId", "==", userId)
+        .limit(1)
+        .get();
+
+      const leaderboardData = {
+        userId: userId,
+        nickname: nickname,
+        email: gameSessionData.email,
+        score: score,
+        level: level,
+        gameTime: gameTime,
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+
+        // Mantener mejores estadísticas
+        totalJumps: gameSessionData.totalJumps,
+        pipesPassedCount: gameSessionData.pipesPassedCount,
+        accuracy: gameSessionData.accuracy,
+        maxHeight: gameSessionData.maxHeight,
+
+        // Metadatos
+        gameVersion: gameSessionData.gameVersion,
+        platform: gameSessionData.platform,
+        deviceType: gameSessionData.deviceType,
+      };
+
+      if (currentRecordQuery.empty) {
+        // 🆕 PRIMER RECORD: Crear entrada nueva en leaderboard
+        console.log(
+          "🔥 FirebaseManager: Primer record del usuario, creando entrada en leaderboard"
+        );
+
+        const newRecordRef = await this.db
+          .collection("leaderboard")
+          .add(leaderboardData);
+
+        console.log(
+          "� FirebaseManager: ✅ Nueva entrada de leaderboard creada:",
+          newRecordRef.id
+        );
+        return true;
+      } else {
+        // 🔄 VERIFICAR SI SUPERA RECORD ACTUAL
+        const currentRecord = currentRecordQuery.docs[0];
+        const currentBestScore = currentRecord.data().score || 0;
+
+        if (score > currentBestScore) {
+          console.log(
+            `🔥 FirebaseManager: ¡Nuevo record! ${score} > ${currentBestScore}`
+          );
+
+          // Actualizar record existente
+          await currentRecord.ref.update(leaderboardData);
+
+          console.log(
+            "🔥 FirebaseManager: ✅ Record de leaderboard actualizado"
+          );
+          return true;
+        } else {
+          console.log(
+            `🔥 FirebaseManager: Score ${score} no supera record actual ${currentBestScore}`
+          );
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error(
+        "🔥 FirebaseManager: ❌ Error verificando/actualizando leaderboard:",
+        error
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Obtiene el leaderboard global (MEJORADO CON FALLBACK)
    * @param {number} limit - Número máximo de resultados
    * @returns {Promise<Array>}
    */
   async getGlobalLeaderboard(limit = 10) {
     try {
+      // Verificaciones de seguridad mejoradas
       if (!this.isReady()) {
-        console.warn("🔥 FirebaseManager: Firebase no está listo para obtener leaderboard");
+        console.warn(
+          "🔥 FirebaseManager: Firebase no está listo para obtener leaderboard"
+        );
         return [];
       }
-      
-      console.log(`🔥 FirebaseManager: Obteniendo leaderboard global (top ${limit})...`);
-      
-      const snapshot = await this.db
-        .collection('leaderboard_scores')
-        .orderBy('score', 'desc')
-        .orderBy('timestamp', 'asc') // En caso de empate, el más antiguo primero
-        .limit(limit)
-        .get();
-      
+
+      console.log(
+        `🔥 FirebaseManager: Obteniendo leaderboard global (top ${limit})...`
+      );
+
+      // Usar la nueva colección leaderboard_scores con mejores consultas
+      let snapshot;
+      try {
+        console.log("🔥 FirebaseManager: Intentando consulta con índice compuesto...");
+        snapshot = await this.db
+          .collection("leaderboard_scores")
+          .orderBy("score", "desc")
+          .orderBy("timestamp", "asc") // En caso de empate, el más antiguo primero
+          .limit(limit)
+          .get();
+          
+        console.log(`🔥 FirebaseManager: ✅ Consulta exitosa con ${snapshot.docs.length} resultados`);
+      } catch (indexError) {
+        if (indexError.message?.includes("index") || indexError.code === "failed-precondition") {
+          console.warn(
+            "🔥 FirebaseManager: ⚠️ Índices no listos - usando consulta simple por score"
+          );
+          // Fallback: solo orderBy score
+          snapshot = await this.db
+            .collection("leaderboard_scores")
+            .orderBy("score", "desc")
+            .limit(limit)
+            .get();
+            
+          console.log(`🔥 FirebaseManager: ✅ Consulta fallback exitosa con ${snapshot.docs.length} resultados`);
+        } else {
+          throw indexError;
+        }
+      }
+
+      // Procesar los resultados con mejor manejo de datos
       const leaderboard = snapshot.docs.map((doc, index) => {
         const data = doc.data();
         return {
           rank: index + 1,
           id: doc.id,
-          nickname: data.nickname,
-          score: data.score,
-          level: data.level,
-          gameTime: data.gameTime,
+          nickname: data.nickname || "Jugador Anónimo",
+          score: data.score || 0,
+          level: data.level || 1,
+          gameTime: data.gameTime || 0,
           timestamp: data.timestamp?.toDate?.() || null,
           totalJumps: data.totalJumps || 0,
           accuracy: data.accuracy || 0,
-          platform: data.platform || 'Unknown',
-          isCurrentUser: data.userId === this.currentUser?.uid
+          maxHeight: data.maxHeight || 0,
+          platform: data.platform || "Unknown",
+          deviceType: data.deviceType || "Unknown",
+          gameVersion: data.gameVersion || "1.0.0",
+          isCurrentUser: data.userId === this.currentUser?.uid,
         };
       });
+
+      console.log(
+        `🔥 FirebaseManager: ✅ Leaderboard obtenido (${leaderboard.length} records)`
+      );
       
-      console.log(`🔥 FirebaseManager: ✅ Leaderboard obtenido (${leaderboard.length} entradas)`);
+      // Log adicional para debugging
+      if (leaderboard.length > 0) {
+        console.log(`🔥 Top score: ${leaderboard[0].nickname} - ${leaderboard[0].score} puntos`);
+      }
+      
       return leaderboard;
+
     } catch (error) {
-      console.error("🔥 FirebaseManager: ❌ Error obteniendo leaderboard:", error);
+      console.error(
+        "🔥 FirebaseManager: ❌ Error obteniendo leaderboard:",
+        error
+      );
+
+      // Diagnóstico detallado mejorado
+      if (error.code === "permission-denied") {
+        console.error("🚨 Error de permisos en leaderboard - Verificar:");
+        console.error("   - ¿Las reglas permiten lectura de 'leaderboard_scores'?");
+        console.error(`   - ¿Usuario autenticado? ${!!this.currentUser}`);
+        console.error(`   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`);
+        console.error("   - Verifica que las reglas Firestore estén publicadas");
+      } else if (error.message?.includes("index") || error.code === "failed-precondition") {
+        console.error("🚨 SOLUCIÓN para índices faltantes:");
+        console.error("   1. Ve a Firebase Console → Firestore → Indexes");
+        console.error("   2. Crea índice compuesto: leaderboard_scores");
+        console.error("      - Campo 1: score (Descending)");
+        console.error("      - Campo 2: timestamp (Ascending)");
+        console.error("   3. O usar el enlace automático que aparece en la consola de Firebase");
+        console.error("   4. Los índices pueden tardar unos minutos en estar listos");
+      } else if (error.code === "unavailable") {
+        console.error("🚨 Firebase temporalmente no disponible - reintentar más tarde");
+      } else {
+        console.error("   - Código de error:", error.code);
+        console.error("   - Mensaje:", error.message);
+        console.error("   - Detalles completos:", error);
+      }
+
       return [];
     }
   }
@@ -1029,56 +1294,141 @@ class FirebaseManager {
    */
   async getUserRanking() {
     try {
-      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
-        console.warn("🔥 FirebaseManager: Usuario anónimo no tiene ranking");
+      // Verificaciones de seguridad mejoradas
+      if (!this.isReady()) {
+        console.warn("🔥 FirebaseManager: Firebase no está listo para obtener ranking");
         return null;
       }
-      
-      console.log("🔥 FirebaseManager: Obteniendo ranking de usuario...");
-      
-      // Obtener la mejor puntuación del usuario
-      const userBestScore = await this.db
-        .collection('leaderboard_scores')
-        .where('userId', '==', this.currentUser.uid)
-        .orderBy('score', 'desc')
-        .limit(1)
-        .get();
-      
-      if (userBestScore.empty) {
-        console.log("🔥 FirebaseManager: Usuario no tiene puntuaciones guardadas");
+
+      if (!this.currentUser || this.currentUser.isAnonymous) {
+        console.warn("🔥 FirebaseManager: Usuario anónimo no tiene ranking");
         return {
           rank: null,
           bestScore: 0,
           totalGames: 0,
           averageScore: 0,
-          totalPlayTime: 0
+          totalPlayTime: 0,
+          userFound: false,
         };
       }
+
+      console.log("🔥 FirebaseManager: Obteniendo ranking de usuario...");
+      const userId = this.currentUser.uid;
+
+      // 🎯 PASO 1: Obtener el mejor score del usuario de la nueva colección
+      let userBestScore = 0;
+      let userScoreData = null;
       
-      const bestScore = userBestScore.docs[0].data().score;
-      
-      // Contar cuántos usuarios tienen mejor puntuación
-      const betterScores = await this.db
-        .collection('leaderboard_scores')
-        .where('score', '>', bestScore)
-        .get();
-      
-      // Obtener estadísticas personales
-      const userStats = await this.getUserPersonalStats();
-      
-      const ranking = {
-        rank: betterScores.size + 1,
-        bestScore: bestScore,
-        totalGames: userStats?.totalGames || 0,
-        averageScore: userStats?.averageScore || 0,
-        totalPlayTime: userStats?.totalPlayTime || 0
+      try {
+        console.log("🔥 FirebaseManager: Buscando mejor score del usuario...");
+        const userScores = await this.db
+          .collection("leaderboard_scores")
+          .where("userId", "==", userId)
+          .orderBy("score", "desc")
+          .limit(1)
+          .get();
+
+        if (!userScores.empty) {
+          userScoreData = userScores.docs[0].data();
+          userBestScore = userScoreData.score;
+          console.log(`🔥 FirebaseManager: Mejor score encontrado: ${userBestScore}`);
+        } else {
+          console.log("🔥 FirebaseManager: Usuario no tiene scores registrados");
+          return {
+            rank: null,
+            bestScore: 0,
+            totalGames: 0,
+            averageScore: 0,
+            totalPlayTime: 0,
+            userFound: false,
+          };
+        }
+      } catch (scoreError) {
+        console.error("🔥 FirebaseManager: Error obteniendo scores del usuario:", scoreError);
+        throw scoreError;
+      }
+
+      // 🎯 PASO 2: Contar cuántos usuarios tienen mejor puntuación (para calcular ranking)
+      let rank = 1;
+      try {
+        console.log(`🔥 FirebaseManager: Calculando ranking (scores > ${userBestScore})...`);
+        const betterScores = await this.db
+          .collection("leaderboard_scores")
+          .where("score", ">", userBestScore)
+          .get();
+
+        rank = betterScores.size + 1;
+        console.log(`🔥 FirebaseManager: Posición en ranking: #${rank}`);
+      } catch (rankError) {
+        console.warn("🔥 FirebaseManager: ⚠️ Error calculando ranking, usando posición 1:", rankError);
+        rank = 1;
+      }
+
+      // 🎯 PASO 3: Obtener estadísticas personales de la nueva colección user_stats
+      let userStats = {
+        totalGames: 1,
+        averageScore: userBestScore,
+        totalPlayTime: userScoreData?.gameTime || 0,
       };
-      
-      console.log("🔥 FirebaseManager: ✅ Ranking de usuario obtenido:", ranking);
+
+      try {
+        console.log("🔥 FirebaseManager: Obteniendo estadísticas personales...");
+        const statsDoc = await this.db
+          .collection("user_stats")
+          .doc(userId)
+          .get();
+
+        if (statsDoc.exists) {
+          const statsData = statsDoc.data();
+          userStats = {
+            totalGames: statsData.totalGames || 1,
+            averageScore: statsData.averageScore || userBestScore,
+            totalPlayTime: statsData.totalPlayTime || 0,
+          };
+          console.log("🔥 FirebaseManager: ✅ Estadísticas personales obtenidas");
+        } else {
+          console.log("🔥 FirebaseManager: No hay estadísticas previas - usando valores por defecto");
+        }
+      } catch (statsError) {
+        console.warn("🔥 FirebaseManager: ⚠️ Error obteniendo estadísticas, usando valores por defecto:", statsError);
+      }
+
+      const ranking = {
+        rank: rank,
+        bestScore: userBestScore,
+        totalGames: userStats.totalGames,
+        averageScore: userStats.averageScore,
+        totalPlayTime: userStats.totalPlayTime,
+        userFound: true,
+        level: userScoreData?.level || 1,
+        lastPlayed: userScoreData?.timestamp?.toDate?.() || null,
+        nickname: userScoreData?.nickname || "Usuario",
+      };
+
+      console.log("🔥 FirebaseManager: ✅ Ranking de usuario completo:", ranking);
       return ranking;
-      
+
     } catch (error) {
       console.error("🔥 FirebaseManager: ❌ Error obteniendo ranking de usuario:", error);
+      
+      // Diagnóstico detallado mejorado
+      if (error.code === "permission-denied") {
+        console.error("🚨 Error de permisos en getUserRanking - Verificar:");
+        console.error("   - ¿Las reglas permiten lectura de 'leaderboard_scores' y 'user_stats'?");
+        console.error(`   - ¿Usuario autenticado? ${!!this.currentUser}`);
+        console.error(`   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`);
+        console.error(`   - UID del usuario: ${this.currentUser?.uid}`);
+        console.error("   - Verifica que las reglas Firestore estén publicadas correctamente");
+      } else if (error.message?.includes("index") || error.code === "failed-precondition") {
+        console.error("🚨 Error de índices - Verificar:");
+        console.error("   1. Índice necesario: leaderboard_scores → userId (Ascending), score (Descending)");
+        console.error("   2. Ve a Firebase Console → Firestore → Indexes");
+        console.error("   3. Los índices pueden tardar unos minutos en estar disponibles");
+      } else {
+        console.error("   - Código de error:", error.code);
+        console.error("   - Mensaje:", error.message);
+      }
+      
       return null;
     }
   }
@@ -1089,28 +1439,44 @@ class FirebaseManager {
    */
   async updateUserPersonalStats(score, level, gameTime, gameStats) {
     try {
-      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
+      if (
+        !this.isReady() ||
+        !this.currentUser ||
+        this.currentUser.isAnonymous
+      ) {
         return;
       }
-      
-      const userDoc = this.db.collection('users').doc(this.currentUser.uid);
-      
+
+      const userDoc = this.db.collection("users").doc(this.currentUser.uid);
+
       // Actualizar estadísticas con incrementos atómicos
-      await userDoc.set({
-        stats: {
-          totalGames: firebase.firestore.FieldValue.increment(1),
-          totalScore: firebase.firestore.FieldValue.increment(score),
-          totalPlayTime: firebase.firestore.FieldValue.increment(Math.round(gameTime)),
-          totalJumps: firebase.firestore.FieldValue.increment(gameStats.totalJumps || 0),
-          lastPlayed: firebase.firestore.FieldValue.serverTimestamp(),
-          lastScore: score,
-          lastLevel: level
-        }
-      }, { merge: true });
-      
-      console.log("🔥 FirebaseManager: ✅ Estadísticas personales actualizadas");
+      await userDoc.set(
+        {
+          stats: {
+            totalGames: firebase.firestore.FieldValue.increment(1),
+            totalScore: firebase.firestore.FieldValue.increment(score),
+            totalPlayTime: firebase.firestore.FieldValue.increment(
+              Math.round(gameTime)
+            ),
+            totalJumps: firebase.firestore.FieldValue.increment(
+              gameStats.totalJumps || 0
+            ),
+            lastPlayed: firebase.firestore.FieldValue.serverTimestamp(),
+            lastScore: score,
+            lastLevel: level,
+          },
+        },
+        { merge: true }
+      );
+
+      console.log(
+        "🔥 FirebaseManager: ✅ Estadísticas personales actualizadas"
+      );
     } catch (error) {
-      console.warn("🔥 FirebaseManager: ⚠️ Error actualizando estadísticas:", error);
+      console.warn(
+        "🔥 FirebaseManager: ⚠️ Error actualizando estadísticas:",
+        error
+      );
     }
   }
 
@@ -1120,29 +1486,39 @@ class FirebaseManager {
    */
   async getUserPersonalStats() {
     try {
-      if (!this.isReady() || !this.currentUser || this.currentUser.isAnonymous) {
+      if (
+        !this.isReady() ||
+        !this.currentUser ||
+        this.currentUser.isAnonymous
+      ) {
         return null;
       }
-      
-      const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
-      
+
+      const userDoc = await this.db
+        .collection("users")
+        .doc(this.currentUser.uid)
+        .get();
+
       if (userDoc.exists && userDoc.data().stats) {
         const stats = userDoc.data().stats;
-        
+
         // Calcular promedio si hay juegos
         if (stats.totalGames > 0 && stats.totalScore) {
           stats.averageScore = Math.round(stats.totalScore / stats.totalGames);
         } else {
           stats.averageScore = 0;
         }
-        
+
         console.log("🔥 FirebaseManager: ✅ Estadísticas personales obtenidas");
         return stats;
       }
-      
+
       return null;
     } catch (error) {
-      console.error("🔥 FirebaseManager: ❌ Error obteniendo stats personales:", error);
+      console.error(
+        "🔥 FirebaseManager: ❌ Error obteniendo stats personales:",
+        error
+      );
       return null;
     }
   }
@@ -1153,11 +1529,11 @@ class FirebaseManager {
    */
   getBrowserInfo() {
     const ua = navigator.userAgent;
-    if (ua.includes('Chrome')) return 'Chrome';
-    if (ua.includes('Firefox')) return 'Firefox';
-    if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari';
-    if (ua.includes('Edge')) return 'Edge';
-    return 'Unknown';
+    if (ua.includes("Chrome")) return "Chrome";
+    if (ua.includes("Firefox")) return "Firefox";
+    if (ua.includes("Safari") && !ua.includes("Chrome")) return "Safari";
+    if (ua.includes("Edge")) return "Edge";
+    return "Unknown";
   }
 
   /**
@@ -1166,9 +1542,9 @@ class FirebaseManager {
    */
   getDeviceType() {
     if (/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)) {
-      return 'mobile';
+      return "mobile";
     }
-    return 'desktop';
+    return "desktop";
   }
 
   /**
@@ -1177,42 +1553,50 @@ class FirebaseManager {
    * @param {number} limit - Número máximo de resultados
    * @returns {Promise<Array>}
    */
-  async getLeaderboardByPeriod(period = 'all', limit = 10) {
+  async getLeaderboardByPeriod(period = "all", limit = 10) {
     try {
       if (!this.isReady()) {
         return [];
       }
 
-      let query = this.db.collection('leaderboard_scores');
-      
+      let query = this.db.collection("leaderboard_scores");
+
       // Calcular fecha límite según el período
-      if (period !== 'all') {
+      if (period !== "all") {
         const now = new Date();
         let startDate;
-        
+
         switch (period) {
-          case 'today':
-            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          case "today":
+            startDate = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate()
+            );
             break;
-          case 'week':
+          case "week":
             startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             break;
-          case 'month':
+          case "month":
             startDate = new Date(now.getFullYear(), now.getMonth(), 1);
             break;
         }
-        
+
         if (startDate) {
-          query = query.where('timestamp', '>=', firebase.firestore.Timestamp.fromDate(startDate));
+          query = query.where(
+            "timestamp",
+            ">=",
+            firebase.firestore.Timestamp.fromDate(startDate)
+          );
         }
       }
-      
+
       const snapshot = await query
-        .orderBy('score', 'desc')
-        .orderBy('timestamp', 'asc')
+        .orderBy("score", "desc")
+        .orderBy("timestamp", "asc")
         .limit(limit)
         .get();
-      
+
       const leaderboard = snapshot.docs.map((doc, index) => {
         const data = doc.data();
         return {
@@ -1223,14 +1607,19 @@ class FirebaseManager {
           level: data.level,
           gameTime: data.gameTime,
           timestamp: data.timestamp?.toDate?.() || null,
-          isCurrentUser: data.userId === this.currentUser?.uid
+          isCurrentUser: data.userId === this.currentUser?.uid,
         };
       });
-      
-      console.log(`🔥 FirebaseManager: ✅ Leaderboard ${period} obtenido (${leaderboard.length} entradas)`);
+
+      console.log(
+        `🔥 FirebaseManager: ✅ Leaderboard ${period} obtenido (${leaderboard.length} entradas)`
+      );
       return leaderboard;
     } catch (error) {
-      console.error(`🔥 FirebaseManager: ❌ Error obteniendo leaderboard ${period}:`, error);
+      console.error(
+        `🔥 FirebaseManager: ❌ Error obteniendo leaderboard ${period}:`,
+        error
+      );
       return [];
     }
   }
