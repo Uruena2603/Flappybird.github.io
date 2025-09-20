@@ -980,7 +980,9 @@ class FirebaseManager {
       }
 
       if (this.currentUser.isAnonymous) {
-        console.log("🔥 FirebaseManager: Usuario anónimo - no se guarda score en leaderboard");
+        console.log(
+          "🔥 FirebaseManager: Usuario anónimo - no se guarda score en leaderboard"
+        );
         return false;
       }
 
@@ -1014,14 +1016,40 @@ class FirebaseManager {
         userAgent: navigator.userAgent,
       };
 
-      // 🎯 USAR BATCH OPERATIONS PARA OPERACIONES ATÓMICAS
-      console.log("🔥 FirebaseManager: Iniciando operaciones batch...");
-      const batch = this.db.batch();
+      // 🎯 LÓGICA CORREGIDA: UN REGISTRO POR USUARIO EN LEADERBOARD
+      console.log("🔥 FirebaseManager: Verificando record personal actual...");
+      
+      // Buscar registro existente del usuario en leaderboard
+      const userLeaderboardQuery = await this.db
+        .collection("leaderboard_scores")
+        .where("userId", "==", userId)
+        .limit(1)
+        .get();
 
-      // 1. Guardar en leaderboard global
-      const scoreRef = this.db.collection("leaderboard_scores").doc();
-      batch.set(scoreRef, scoreData);
-      console.log("🔥 FirebaseManager: Agregado al batch - leaderboard global");
+      // Determinar si actualizar leaderboard
+      let isNewRecord = false;
+      
+      if (userLeaderboardQuery.empty) {
+        // PRIMER SCORE: Crear nuevo registro en leaderboard
+        console.log("🔥 FirebaseManager: Primer score del usuario - creando registro en leaderboard");
+        const newLeaderboardRef = this.db.collection("leaderboard_scores").doc();
+        batch.set(newLeaderboardRef, scoreData);
+        isNewRecord = true;
+      } else {
+        // SCORE EXISTENTE: Solo actualizar si es mejor
+        const currentRecord = userLeaderboardQuery.docs[0];
+        const currentBestScore = currentRecord.data().score || 0;
+
+        if (score > currentBestScore) {
+          console.log(`🔥 FirebaseManager: ¡Nuevo record personal! ${score} > ${currentBestScore}`);
+          batch.update(currentRecord.ref, scoreData);
+          isNewRecord = true;
+        } else {
+          console.log(`🔥 FirebaseManager: Score ${score} no supera record actual ${currentBestScore} - no se actualiza leaderboard`);
+        }
+      }
+
+      // 1. Guardar en leaderboard global (ya manejado arriba)
 
       // 2. Guardar en historial personal del usuario
       console.log("🔥 FirebaseManager: Guardando en historial de partidas...");
@@ -1030,7 +1058,7 @@ class FirebaseManager {
         .doc(userId)
         .collection("games")
         .doc();
-      
+
       batch.set(gameHistoryRef, {
         ...scoreData,
         gameId: gameHistoryRef.id,
@@ -1039,42 +1067,55 @@ class FirebaseManager {
 
       // 3. Actualizar estadísticas personales del usuario
       const userStatsRef = this.db.collection("user_stats").doc(userId);
-      batch.set(userStatsRef, {
-        userId: userId,
-        nickname: userNickname,
-        email: this.currentUser.email,
-        totalGames: firebase.firestore.FieldValue.increment(1),
-        bestScore: score, // Se actualizará con el máximo en el servidor
-        totalPlayTime: firebase.firestore.FieldValue.increment(gameTime),
-        lastPlayed: firebase.firestore.FieldValue.serverTimestamp(),
-        averageScore: score, // Se calculará correctamente en el servidor
-        level: level,
-      }, { merge: true });
-      console.log("🔥 FirebaseManager: Agregado al batch - estadísticas personales");
+      batch.set(
+        userStatsRef,
+        {
+          userId: userId,
+          nickname: userNickname,
+          email: this.currentUser.email,
+          totalGames: firebase.firestore.FieldValue.increment(1),
+          bestScore: score, // Se actualizará con el máximo en el servidor
+          totalPlayTime: firebase.firestore.FieldValue.increment(gameTime),
+          lastPlayed: firebase.firestore.FieldValue.serverTimestamp(),
+          averageScore: score, // Se calculará correctamente en el servidor
+          level: level,
+        },
+        { merge: true }
+      );
+      console.log(
+        "🔥 FirebaseManager: Agregado al batch - estadísticas personales"
+      );
 
       // Ejecutar todas las operaciones de forma atómica
       await batch.commit();
-      
-      console.log("🔥 FirebaseManager: ✅ Score guardado exitosamente con batch operations");
-      return true;
 
+      console.log(
+        "🔥 FirebaseManager: ✅ Score guardado exitosamente con batch operations"
+      );
+      return true;
     } catch (error) {
       console.error("🔥 FirebaseManager: ❌ Error guardando score:", error);
-      
+
       // Diagnóstico detallado mejorado
       if (error.code === "permission-denied") {
         console.error("🚨 Error de permisos - Verificar reglas de Firestore:");
         console.error("   - ¿Las reglas están publicadas?");
-        console.error(`   - ¿El usuario está autenticado? ${!!this.currentUser}`);
-        console.error(`   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`);
+        console.error(
+          `   - ¿El usuario está autenticado? ${!!this.currentUser}`
+        );
+        console.error(
+          `   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`
+        );
         console.error(`   - UID del usuario: ${this.currentUser?.uid}`);
         console.error(`   - Email del usuario: ${this.currentUser?.email}`);
-        console.error("   - Verifica que las reglas permitan escritura para usuarios registrados");
+        console.error(
+          "   - Verifica que las reglas permitan escritura para usuarios registrados"
+        );
       } else {
         console.error("   - Tipo de error:", error.code);
         console.error("   - Mensaje:", error.message);
       }
-      
+
       return false;
     }
   }
@@ -1196,17 +1237,24 @@ class FirebaseManager {
       // Usar la nueva colección leaderboard_scores con mejores consultas
       let snapshot;
       try {
-        console.log("🔥 FirebaseManager: Intentando consulta con índice compuesto...");
+        console.log(
+          "🔥 FirebaseManager: Intentando consulta con índice compuesto..."
+        );
         snapshot = await this.db
           .collection("leaderboard_scores")
           .orderBy("score", "desc")
           .orderBy("timestamp", "asc") // En caso de empate, el más antiguo primero
           .limit(limit)
           .get();
-          
-        console.log(`🔥 FirebaseManager: ✅ Consulta exitosa con ${snapshot.docs.length} resultados`);
+
+        console.log(
+          `🔥 FirebaseManager: ✅ Consulta exitosa con ${snapshot.docs.length} resultados`
+        );
       } catch (indexError) {
-        if (indexError.message?.includes("index") || indexError.code === "failed-precondition") {
+        if (
+          indexError.message?.includes("index") ||
+          indexError.code === "failed-precondition"
+        ) {
           console.warn(
             "🔥 FirebaseManager: ⚠️ Índices no listos - usando consulta simple por score"
           );
@@ -1216,8 +1264,10 @@ class FirebaseManager {
             .orderBy("score", "desc")
             .limit(limit)
             .get();
-            
-          console.log(`🔥 FirebaseManager: ✅ Consulta fallback exitosa con ${snapshot.docs.length} resultados`);
+
+          console.log(
+            `🔥 FirebaseManager: ✅ Consulta fallback exitosa con ${snapshot.docs.length} resultados`
+          );
         } else {
           throw indexError;
         }
@@ -1247,14 +1297,15 @@ class FirebaseManager {
       console.log(
         `🔥 FirebaseManager: ✅ Leaderboard obtenido (${leaderboard.length} records)`
       );
-      
+
       // Log adicional para debugging
       if (leaderboard.length > 0) {
-        console.log(`🔥 Top score: ${leaderboard[0].nickname} - ${leaderboard[0].score} puntos`);
+        console.log(
+          `🔥 Top score: ${leaderboard[0].nickname} - ${leaderboard[0].score} puntos`
+        );
       }
-      
-      return leaderboard;
 
+      return leaderboard;
     } catch (error) {
       console.error(
         "🔥 FirebaseManager: ❌ Error obteniendo leaderboard:",
@@ -1264,20 +1315,35 @@ class FirebaseManager {
       // Diagnóstico detallado mejorado
       if (error.code === "permission-denied") {
         console.error("🚨 Error de permisos en leaderboard - Verificar:");
-        console.error("   - ¿Las reglas permiten lectura de 'leaderboard_scores'?");
+        console.error(
+          "   - ¿Las reglas permiten lectura de 'leaderboard_scores'?"
+        );
         console.error(`   - ¿Usuario autenticado? ${!!this.currentUser}`);
-        console.error(`   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`);
-        console.error("   - Verifica que las reglas Firestore estén publicadas");
-      } else if (error.message?.includes("index") || error.code === "failed-precondition") {
+        console.error(
+          `   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`
+        );
+        console.error(
+          "   - Verifica que las reglas Firestore estén publicadas"
+        );
+      } else if (
+        error.message?.includes("index") ||
+        error.code === "failed-precondition"
+      ) {
         console.error("🚨 SOLUCIÓN para índices faltantes:");
         console.error("   1. Ve a Firebase Console → Firestore → Indexes");
         console.error("   2. Crea índice compuesto: leaderboard_scores");
         console.error("      - Campo 1: score (Descending)");
         console.error("      - Campo 2: timestamp (Ascending)");
-        console.error("   3. O usar el enlace automático que aparece en la consola de Firebase");
-        console.error("   4. Los índices pueden tardar unos minutos en estar listos");
+        console.error(
+          "   3. O usar el enlace automático que aparece en la consola de Firebase"
+        );
+        console.error(
+          "   4. Los índices pueden tardar unos minutos en estar listos"
+        );
       } else if (error.code === "unavailable") {
-        console.error("🚨 Firebase temporalmente no disponible - reintentar más tarde");
+        console.error(
+          "🚨 Firebase temporalmente no disponible - reintentar más tarde"
+        );
       } else {
         console.error("   - Código de error:", error.code);
         console.error("   - Mensaje:", error.message);
@@ -1296,7 +1362,9 @@ class FirebaseManager {
     try {
       // Verificaciones de seguridad mejoradas
       if (!this.isReady()) {
-        console.warn("🔥 FirebaseManager: Firebase no está listo para obtener ranking");
+        console.warn(
+          "🔥 FirebaseManager: Firebase no está listo para obtener ranking"
+        );
         return null;
       }
 
@@ -1318,7 +1386,7 @@ class FirebaseManager {
       // 🎯 PASO 1: Obtener el mejor score del usuario de la nueva colección
       let userBestScore = 0;
       let userScoreData = null;
-      
+
       try {
         console.log("🔥 FirebaseManager: Buscando mejor score del usuario...");
         const userScores = await this.db
@@ -1331,9 +1399,13 @@ class FirebaseManager {
         if (!userScores.empty) {
           userScoreData = userScores.docs[0].data();
           userBestScore = userScoreData.score;
-          console.log(`🔥 FirebaseManager: Mejor score encontrado: ${userBestScore}`);
+          console.log(
+            `🔥 FirebaseManager: Mejor score encontrado: ${userBestScore}`
+          );
         } else {
-          console.log("🔥 FirebaseManager: Usuario no tiene scores registrados");
+          console.log(
+            "🔥 FirebaseManager: Usuario no tiene scores registrados"
+          );
           return {
             rank: null,
             bestScore: 0,
@@ -1344,14 +1416,19 @@ class FirebaseManager {
           };
         }
       } catch (scoreError) {
-        console.error("🔥 FirebaseManager: Error obteniendo scores del usuario:", scoreError);
+        console.error(
+          "🔥 FirebaseManager: Error obteniendo scores del usuario:",
+          scoreError
+        );
         throw scoreError;
       }
 
       // 🎯 PASO 2: Contar cuántos usuarios tienen mejor puntuación (para calcular ranking)
       let rank = 1;
       try {
-        console.log(`🔥 FirebaseManager: Calculando ranking (scores > ${userBestScore})...`);
+        console.log(
+          `🔥 FirebaseManager: Calculando ranking (scores > ${userBestScore})...`
+        );
         const betterScores = await this.db
           .collection("leaderboard_scores")
           .where("score", ">", userBestScore)
@@ -1360,7 +1437,10 @@ class FirebaseManager {
         rank = betterScores.size + 1;
         console.log(`🔥 FirebaseManager: Posición en ranking: #${rank}`);
       } catch (rankError) {
-        console.warn("🔥 FirebaseManager: ⚠️ Error calculando ranking, usando posición 1:", rankError);
+        console.warn(
+          "🔥 FirebaseManager: ⚠️ Error calculando ranking, usando posición 1:",
+          rankError
+        );
         rank = 1;
       }
 
@@ -1372,7 +1452,9 @@ class FirebaseManager {
       };
 
       try {
-        console.log("🔥 FirebaseManager: Obteniendo estadísticas personales...");
+        console.log(
+          "🔥 FirebaseManager: Obteniendo estadísticas personales..."
+        );
         const statsDoc = await this.db
           .collection("user_stats")
           .doc(userId)
@@ -1385,12 +1467,19 @@ class FirebaseManager {
             averageScore: statsData.averageScore || userBestScore,
             totalPlayTime: statsData.totalPlayTime || 0,
           };
-          console.log("🔥 FirebaseManager: ✅ Estadísticas personales obtenidas");
+          console.log(
+            "🔥 FirebaseManager: ✅ Estadísticas personales obtenidas"
+          );
         } else {
-          console.log("🔥 FirebaseManager: No hay estadísticas previas - usando valores por defecto");
+          console.log(
+            "🔥 FirebaseManager: No hay estadísticas previas - usando valores por defecto"
+          );
         }
       } catch (statsError) {
-        console.warn("🔥 FirebaseManager: ⚠️ Error obteniendo estadísticas, usando valores por defecto:", statsError);
+        console.warn(
+          "🔥 FirebaseManager: ⚠️ Error obteniendo estadísticas, usando valores por defecto:",
+          statsError
+        );
       }
 
       const ranking = {
@@ -1405,30 +1494,48 @@ class FirebaseManager {
         nickname: userScoreData?.nickname || "Usuario",
       };
 
-      console.log("🔥 FirebaseManager: ✅ Ranking de usuario completo:", ranking);
+      console.log(
+        "🔥 FirebaseManager: ✅ Ranking de usuario completo:",
+        ranking
+      );
       return ranking;
-
     } catch (error) {
-      console.error("🔥 FirebaseManager: ❌ Error obteniendo ranking de usuario:", error);
-      
+      console.error(
+        "🔥 FirebaseManager: ❌ Error obteniendo ranking de usuario:",
+        error
+      );
+
       // Diagnóstico detallado mejorado
       if (error.code === "permission-denied") {
         console.error("🚨 Error de permisos en getUserRanking - Verificar:");
-        console.error("   - ¿Las reglas permiten lectura de 'leaderboard_scores' y 'user_stats'?");
+        console.error(
+          "   - ¿Las reglas permiten lectura de 'leaderboard_scores' y 'user_stats'?"
+        );
         console.error(`   - ¿Usuario autenticado? ${!!this.currentUser}`);
-        console.error(`   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`);
+        console.error(
+          `   - ¿Usuario anónimo? ${this.currentUser?.isAnonymous}`
+        );
         console.error(`   - UID del usuario: ${this.currentUser?.uid}`);
-        console.error("   - Verifica que las reglas Firestore estén publicadas correctamente");
-      } else if (error.message?.includes("index") || error.code === "failed-precondition") {
+        console.error(
+          "   - Verifica que las reglas Firestore estén publicadas correctamente"
+        );
+      } else if (
+        error.message?.includes("index") ||
+        error.code === "failed-precondition"
+      ) {
         console.error("🚨 Error de índices - Verificar:");
-        console.error("   1. Índice necesario: leaderboard_scores → userId (Ascending), score (Descending)");
+        console.error(
+          "   1. Índice necesario: leaderboard_scores → userId (Ascending), score (Descending)"
+        );
         console.error("   2. Ve a Firebase Console → Firestore → Indexes");
-        console.error("   3. Los índices pueden tardar unos minutos en estar disponibles");
+        console.error(
+          "   3. Los índices pueden tardar unos minutos en estar disponibles"
+        );
       } else {
         console.error("   - Código de error:", error.code);
         console.error("   - Mensaje:", error.message);
       }
-      
+
       return null;
     }
   }
