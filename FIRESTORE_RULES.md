@@ -9,19 +9,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Reglas para la colección de usuarios
+    // 👤 USUARIOS: Gestión de perfiles y nicknames
     match /users/{userId} {
-      // Permitir lectura para todos (para verificar nicknames únicos)
+      // Lectura pública para verificar nicknames únicos
       allow read: if true;
 
-      // Permitir escritura solo para el usuario autenticado y su propio documento
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // Escritura solo para el usuario propietario autenticado no anónimo
+      allow write: if request.auth != null
+                  && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                  && request.auth.uid == userId;
     }
 
-    // Reglas para leaderboard (se usarán en Etapa 5)
+    // 🏆 LEADERBOARD GLOBAL: Un registro único por usuario
     match /leaderboard_scores/{scoreId} {
+      // LECTURA PÚBLICA: Todos pueden ver el leaderboard
       allow read: if true;
-      allow write: if request.auth != null && !request.auth.token.firebase.sign_in_provider == 'anonymous';
+
+      // CREAR: Solo usuarios autenticados no anónimos
+      allow create: if request.auth != null
+                   && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                   && request.auth.uid == request.resource.data.userId
+                   && request.resource.data.userId is string
+                   && request.resource.data.nickname is string
+                   && request.resource.data.score is number
+                   && request.resource.data.score >= 0;
+
+      // ACTUALIZAR: Solo el propietario puede actualizar su record si mejora
+      allow update: if request.auth != null
+                   && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                   && request.auth.uid == resource.data.userId
+                   && request.auth.uid == request.resource.data.userId
+                   && request.resource.data.score >= resource.data.score;
+
+      // No permitir delete para mantener integridad
+      allow delete: if false;
+    }
+
+    // 📚 HISTORIAL PERSONAL: Partidas por usuario
+    match /user_game_history/{userId} {
+      // Solo el usuario puede leer su propio historial
+      allow read: if request.auth != null
+                 && request.auth.uid == userId;
+
+      // Solo el usuario puede escribir en su colección
+      allow write: if request.auth != null
+                  && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                  && request.auth.uid == userId;
+
+      // Subcolección de partidas individuales
+      match /games/{gameId} {
+        // Solo el usuario puede acceder a sus partidas
+        allow read, write: if request.auth != null
+                          && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                          && request.auth.uid == userId;
+      }
+    }
+
+    // 📊 ESTADÍSTICAS DE USUARIO: Datos agregados
+    match /user_stats/{userId} {
+      // LECTURA: Solo el usuario puede ver sus estadísticas
+      allow read: if request.auth != null
+                 && request.auth.uid == userId;
+
+      // ESCRITURA: Solo el usuario puede actualizar sus estadísticas
+      allow write: if request.auth != null
+                  && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                  && request.auth.uid == userId;
     }
   }
 }
